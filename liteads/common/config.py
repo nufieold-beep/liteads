@@ -342,10 +342,20 @@ def get_settings() -> Settings:
 
     flat_config["env"] = env
 
-    # Create nested settings dynamically
+    # Create nested settings dynamically, allowing env vars to override YAML.
+    # pydantic-settings gives init kwargs higher priority than env vars,
+    # so we manually merge env-var overrides into the YAML dict first.
     for section_key, settings_cls in _SECTION_CLASSES.items():
-        if section_key in merged:
-            flat_config[section_key] = settings_cls(**merged[section_key])
+        section_data = dict(merged.get(section_key, {}))
+
+        # Check for env-var overrides: LITEADS_SECTION__FIELD → field
+        prefix = f"LITEADS_{section_key.upper()}__"
+        for env_key, env_value in os.environ.items():
+            if env_key.startswith(prefix):
+                field_name = env_key[len(prefix):].lower()
+                section_data[field_name] = env_value
+
+        flat_config[section_key] = settings_cls(**section_data)
 
     return Settings(**flat_config)
 
