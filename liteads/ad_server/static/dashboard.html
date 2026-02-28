@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LiteAds – Ad Server Dashboard</title>
+<style>
+/* ── Reset & Variables ─────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--bg2:#181b24;--bg3:#1e222d;--bg4:#272c3a;
+  --fg:#e4e6ed;--fg2:#9ba1b0;--fg3:#6b7280;
+  --accent:#6366f1;--accent2:#818cf8;--accent-bg:rgba(99,102,241,.12);
+  --green:#22c55e;--green-bg:rgba(34,197,94,.12);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.12);
+  --yellow:#eab308;--yellow-bg:rgba(234,179,8,.12);
+  --blue:#3b82f6;--blue-bg:rgba(59,130,246,.12);
+  --radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.2);
+  --shadow-lg:0 10px 25px rgba(0,0,0,.4);
+  --transition:all .2s ease;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--fg);line-height:1.5;min-height:100vh}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+button{cursor:pointer;font-family:inherit}
+
+/* ── Layout ──────────────────────────────────────────────── */
+.app{display:flex;min-height:100vh}
+.sidebar{width:250px;background:var(--bg2);border-right:1px solid var(--bg4);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100}
+.sidebar-brand{padding:20px 24px;border-bottom:1px solid var(--bg4);display:flex;align-items:center;gap:10px}
+.sidebar-brand svg{width:28px;height:28px;flex-shrink:0}
+.sidebar-brand h1{font-size:18px;font-weight:700;color:var(--fg);letter-spacing:-.3px}
+.sidebar-brand span{font-size:10px;background:var(--accent);color:#fff;padding:2px 6px;border-radius:10px;font-weight:600}
+.sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-section{padding:8px 24px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--fg3);margin-top:8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 24px;color:var(--fg2);font-size:14px;cursor:pointer;transition:var(--transition);border-left:3px solid transparent}
+.nav-item:hover{background:var(--bg3);color:var(--fg)}
+.nav-item.active{background:var(--accent-bg);color:var(--accent2);border-left-color:var(--accent)}
+.nav-item svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
+.nav-item.active svg{opacity:1}
+.main{margin-left:250px;flex:1;min-width:0}
+.topbar{height:60px;background:var(--bg2);border-bottom:1px solid var(--bg4);display:flex;align-items:center;justify-content:space-between;padding:0 32px;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:20px;font-weight:600}
+.topbar-actions{display:flex;align-items:center;gap:12px}
+.content{padding:24px 32px}
+
+/* ── Cards & Grids ───────────────────────────────────────── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--radius-lg);padding:20px;transition:var(--transition)}
+.stat-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.stat-card .label{font-size:12px;color:var(--fg3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.stat-card .value{font-size:28px;font-weight:700;letter-spacing:-.5px}
+.stat-card .sub{font-size:12px;color:var(--fg2);margin-top:4px}
+.stat-card.green .value{color:var(--green)}
+.stat-card.blue .value{color:var(--blue)}
+.stat-card.yellow .value{color:var(--yellow)}
+.stat-card.accent .value{color:var(--accent2)}
+
+.card{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden}
+.card-header{padding:16px 20px;border-bottom:1px solid var(--bg4);display:flex;align-items:center;justify-content:space-between}
+.card-header h3{font-size:15px;font-weight:600}
+.card-body{padding:20px}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1px solid transparent;font-size:13px;font-weight:500;transition:var(--transition)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--bg3);color:var(--fg);border-color:var(--bg4)}
+.btn-secondary:hover{background:var(--bg4)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#dc2626}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:6px;border-radius:6px;background:transparent;color:var(--fg2)}
+.btn-icon:hover{background:var(--bg3);color:var(--fg)}
+
+/* ── Table ───────────────────────────────────────────────── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{padding:10px 14px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--fg3);border-bottom:1px solid var(--bg4);white-space:nowrap}
+tbody td{padding:12px 14px;border-bottom:1px solid var(--bg3);font-size:13px;white-space:nowrap}
+tbody tr{transition:var(--transition)}
+tbody tr:hover{background:var(--bg3)}
+
+/* ── Badges ──────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.3px}
+.badge-active{background:var(--green-bg);color:var(--green)}
+.badge-paused{background:var(--yellow-bg);color:var(--yellow)}
+.badge-inactive{background:var(--red-bg);color:var(--red)}
+.badge-deleted{background:rgba(107,114,128,.15);color:var(--fg3)}
+
+/* ── Forms / Modal ───────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.active{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--bg4);border-radius:var(--radius-lg);width:90%;max-width:640px;max-height:85vh;display:flex;flex-direction:column;box-shadow:var(--shadow-lg)}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--bg4);display:flex;align-items:center;justify-content:space-between}
+.modal-header h3{font-size:16px;font-weight:600}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--bg4);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:600;color:var(--fg2)}
+.form-group input,.form-group select,.form-group textarea{background:var(--bg3);border:1px solid var(--bg4);border-radius:var(--radius);padding:8px 12px;color:var(--fg);font-size:13px;transition:var(--transition)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent)}
+.form-group textarea{min-height:70px;resize:vertical}
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast-container{position:fixed;top:16px;right:16px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;animation:slideIn .3s ease;min-width:260px;box-shadow:var(--shadow-lg)}
+.toast-success{background:#166534;color:#bbf7d0}
+.toast-error{background:#7f1d1d;color:#fecaca}
+.toast-info{background:#1e3a5f;color:#bfdbfe}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── Tabs ────────────────────────────────────────────────── */
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--bg4);padding-bottom:0}
+.tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--fg2);cursor:pointer;border-bottom:2px solid transparent;transition:var(--transition);margin-bottom:-1px}
+.tab:hover{color:var(--fg)}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
+
+/* ── Section visibility ──────────────────────────────────── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── Spinner ─────────────────────────────────────────────── */
+.spinner{width:20px;height:20px;border:2px solid var(--bg4);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-row td{text-align:center;padding:40px;color:var(--fg3)}
+
+/* ── Empty state ─────────────────────────────────────────── */
+.empty{text-align:center;padding:48px 20px;color:var(--fg3)}
+.empty svg{width:48px;height:48px;margin-bottom:12px;opacity:.4}
+.empty p{margin-bottom:16px}
+
+/* ── VAST Tag display ────────────────────────────────────── */
+.vast-tag-display{background:var(--bg);border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;font-family:'Fira Code',monospace;font-size:12px;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow-y:auto;color:var(--green)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke="var(--accent2)"/></svg>
+    <div><h1>LiteAds</h1></div>
+    <span>v1.0</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-section">Manage</div>
+    <div class="nav-item" data-page="advertisers" onclick="showPage('advertisers')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Advertisers
+    </div>
+    <div class="nav-item" data-page="campaigns" onclick="showPage('campaigns')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Campaigns
+    </div>
+    <div class="nav-item" data-page="creatives" onclick="showPage('creatives')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      Creatives
+    </div>
+    <div class="nav-item" data-page="targeting" onclick="showPage('targeting')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+      Targeting
+    </div>
+    <div class="nav-section">Tools</div>
+    <div class="nav-item" data-page="vast" onclick="showPage('vast')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      VAST Tags
+    </div>
+    <div class="nav-item" data-page="analytics" onclick="showPage('analytics')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Analytics
+    </div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" data-page="settings" onclick="showPage('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Settings
+    </div>
+  </nav>
+</aside>
+
+<!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+<div class="main">
+<div class="topbar">
+  <div class="topbar-title" id="pageTitle">Dashboard</div>
+  <div class="topbar-actions">
+    <button class="btn btn-secondary btn-sm" onclick="refreshCurrentPage()">↻ Refresh</button>
+    <span style="color:var(--fg3);font-size:12px" id="lastUpdated"></span>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ═══════════════ DASHBOARD PAGE ═══════════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="stats-grid" id="dashStats">
+    <div class="stat-card accent"><div class="label">Advertisers</div><div class="value" id="statAdvs">–</div></div>
+    <div class="stat-card blue"><div class="label">Active Campaigns</div><div class="value" id="statCamps">–</div></div>
+    <div class="stat-card green"><div class="label">Total Impressions</div><div class="value" id="statImps">–</div></div>
+    <div class="stat-card yellow"><div class="label">Total Clicks</div><div class="value" id="statClicks">–</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Recent Campaigns</h3></div>
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Campaign</th><th>Advertiser</th><th>Status</th><th>Budget</th><th>Spent</th><th>Imps</th><th>Clicks</th></tr></thead>
+        <tbody id="dashCampaigns"><tr class="loading-row"><td colspan="8"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ADVERTISERS PAGE ═══════════════ -->
+<div class="page" id="page-advertisers">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="font-size:16px">All Advertisers</h3>
+    <button class="btn btn-primary" onclick="openModal('advModal')">+ New Advertiser</button>
+  </div>
+  <div class="card">
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Company</th><th>Email</th><th>Balance</th><th>Daily Budget</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="advTableBody"><tr class="loading-row"><td colspan="8"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CAMPAIGNS PAGE ═══════════════ -->
+<div class="page" id="page-campaigns">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="font-size:16px">All Campaigns</h3>
+    <button class="btn btn-primary" onclick="openCampaignModal()">+ New Campaign</button>
+  </div>
+  <div class="card">
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Campaign</th><th>Adv ID</th><th>Env</th><th>Bid</th><th>Budget/Day</th><th>Spent Today</th><th>Imps</th><th>Compl</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="campTableBody"><tr class="loading-row"><td colspan="11"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CREATIVES PAGE ═══════════════ -->
+<div class="page" id="page-creatives">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="font-size:16px">All Creatives</h3>
+    <button class="btn btn-primary" onclick="openCreativeModal()">+ New Creative</button>
+  </div>
+  <div class="card">
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Title</th><th>Camp ID</th><th>Type</th><th>Duration</th><th>Res</th><th>Placement</th><th>Quality</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="crtvTableBody"><tr class="loading-row"><td colspan="10"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TARGETING PAGE ═══════════════ -->
+<div class="page" id="page-targeting">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h3 style="font-size:16px">Campaign Targeting Rules</h3>
+  </div>
+  <div class="form-row" style="margin-bottom:20px">
+    <div class="form-group">
+      <label>Select Campaign</label>
+      <select id="targetCampSelect" onchange="loadTargetingRules()"><option value="">— Choose campaign —</option></select>
+    </div>
+    <div class="form-group" style="justify-content:flex-end;align-items:flex-end">
+      <button class="btn btn-primary" onclick="openTargetingModal()" id="btnAddRule" disabled>+ Add Rule</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Type</th><th>Include/Exclude</th><th>Value</th><th>Actions</th></tr></thead>
+        <tbody id="targetTableBody"><tr><td colspan="5" class="empty" style="text-align:center;color:var(--fg3)">Select a campaign above</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ VAST TAGS PAGE ═══════════════ -->
+<div class="page" id="page-vast">
+  <h3 style="font-size:16px;margin-bottom:16px">VAST Tag Builder</h3>
+  <div class="card">
+    <div class="card-header"><h3>Generate VAST Tag URL</h3></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group"><label>Slot ID *</label><input id="vastSlotId" placeholder="homepage_preroll"></div>
+        <div class="form-group"><label>Environment</label><select id="vastEnv"><option value="ctv">CTV</option><option value="inapp">In-App</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Width</label><input id="vastW" type="number" value="1920"></div>
+        <div class="form-group"><label>Height</label><input id="vastH" type="number" value="1080"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Max Duration</label><input id="vastDur" type="number" value="30"></div>
+        <div class="form-group"><label>VAST Version</label><select id="vastVer"><option value="4.0">4.0</option><option value="4.1">4.1</option><option value="4.2">4.2</option><option value="3.0">3.0</option><option value="2.0">2.0</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>App Bundle</label><input id="vastBundle" placeholder="com.example.app"></div>
+        <div class="form-group"><label>App Name</label><input id="vastAppName" placeholder="MyApp"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Macros</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--fg2)"><input type="checkbox" id="macroIP" checked> [IP]</label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--fg2)"><input type="checkbox" id="macroUA" checked> [UA]</label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--fg2)"><input type="checkbox" id="macroIFA"> [IFA]</label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--fg2)"><input type="checkbox" id="macroCB" checked> [CACHEBUSTER]</label>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="buildVastTag()" style="margin-top:8px">Generate Tag</button>
+      <div id="vastResult" style="margin-top:16px;display:none">
+        <label style="font-size:12px;font-weight:600;color:var(--fg2);display:block;margin-bottom:6px">Generated VAST Tag URL</label>
+        <div class="vast-tag-display" id="vastTagUrl"></div>
+        <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="copyVastTag()">📋 Copy to Clipboard</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ ANALYTICS PAGE ═══════════════ -->
+<div class="page" id="page-analytics">
+  <h3 style="font-size:16px;margin-bottom:16px">Campaign Analytics</h3>
+  <div class="form-row" style="margin-bottom:20px">
+    <div class="form-group">
+      <label>Select Campaign</label>
+      <select id="analyticsCampSelect" onchange="loadAnalytics()"><option value="">— All Campaigns —</option></select>
+    </div>
+    <div class="form-group" style="justify-content:flex-end;align-items:flex-end">
+      <button class="btn btn-secondary btn-sm" onclick="flushStats()">⟳ Flush Stats to DB</button>
+    </div>
+  </div>
+
+  <div class="stats-grid" id="analyticsStats">
+    <div class="stat-card blue"><div class="label">Impressions</div><div class="value" id="anImps">–</div></div>
+    <div class="stat-card green"><div class="label">Completions</div><div class="value" id="anCompl">–</div></div>
+    <div class="stat-card yellow"><div class="label">Clicks</div><div class="value" id="anClicks">–</div></div>
+    <div class="stat-card accent"><div class="label">VTR</div><div class="value" id="anVtr">–</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchAnalyticsTab('today')">Today</div>
+    <div class="tab" onclick="switchAnalyticsTab('budget')">Budget</div>
+    <div class="tab" onclick="switchAnalyticsTab('demand')">Demand Report</div>
+    <div class="tab" onclick="switchAnalyticsTab('supply')">Supply Report</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body table-wrap" id="analyticsTableWrap">
+      <p style="color:var(--fg3);text-align:center;padding:20px">Select a campaign or view demand/supply reports</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SETTINGS PAGE ═══════════════ -->
+<div class="page" id="page-settings">
+  <h3 style="font-size:16px;margin-bottom:16px">Server Settings</h3>
+  <div class="card">
+    <div class="card-header"><h3>API Configuration</h3></div>
+    <div class="card-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>API Base URL</label>
+          <input id="apiBaseUrl" value="">
+          <small style="color:var(--fg3);margin-top:4px;font-size:11px">Change this if the API is on a different host/port. Default: current origin.</small>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Quick Links</h3></div>
+    <div class="card-body">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <a href="/docs" target="_blank">📄 API Documentation (Swagger UI)</a>
+        <a href="/health" target="_blank">💚 Health Check</a>
+        <a href="/metrics" target="_blank">📊 Prometheus Metrics</a>
+        <a id="grafanaLink" href="http://localhost:3000" target="_blank">📈 Grafana Dashboard</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ═══════════════ MODALS ═══════════════ -->
+<!-- Advertiser Modal -->
+<div class="modal-overlay" id="advModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="advModalTitle">New Advertiser</h3><button class="btn-icon" onclick="closeModal('advModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="advEditId">
+      <div class="form-row">
+        <div class="form-group"><label>Name *</label><input id="advName" placeholder="Advertiser name"></div>
+        <div class="form-group"><label>Company</label><input id="advCompany" placeholder="Company"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Email</label><input id="advEmail" type="email" placeholder="contact@example.com"></div>
+        <div class="form-group"><label>Balance ($)</label><input id="advBalance" type="number" step="0.01" value="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Daily Budget ($)</label><input id="advDailyBudget" type="number" step="0.01" value="0"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('advModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAdvertiser()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Campaign Modal -->
+<div class="modal-overlay" id="campModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="campModalTitle">New Campaign</h3><button class="btn-icon" onclick="closeModal('campModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="campEditId">
+      <div class="form-row">
+        <div class="form-group"><label>Advertiser *</label><select id="campAdvId"></select></div>
+        <div class="form-group"><label>Name *</label><input id="campName" placeholder="Campaign name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>Description</label><textarea id="campDesc" placeholder="Campaign description"></textarea></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Bid Amount (CPM) *</label><input id="campBid" type="number" step="0.01" value="5.00"></div>
+        <div class="form-group"><label>Environment</label><select id="campEnv"><option value="">Both</option><option value="1">CTV</option><option value="2">In-App</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Daily Budget ($)</label><input id="campBudgetDaily" type="number" step="0.01" value="100"></div>
+        <div class="form-group"><label>Total Budget ($)</label><input id="campBudgetTotal" type="number" step="0.01" value="10000"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Freq Cap (Hourly)</label><input id="campFreqH" type="number" value="3"></div>
+        <div class="form-group"><label>Freq Cap (Daily)</label><input id="campFreqD" type="number" value="10"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Start Time</label><input id="campStart" type="datetime-local"></div>
+        <div class="form-group"><label>End Time</label><input id="campEnd" type="datetime-local"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('campModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCampaign()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Creative Modal -->
+<div class="modal-overlay" id="crtvModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="crtvModalTitle">New Creative</h3><button class="btn-icon" onclick="closeModal('crtvModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="crtvEditId">
+      <div class="form-row">
+        <div class="form-group"><label>Campaign *</label><select id="crtvCampId"></select></div>
+        <div class="form-group"><label>Title *</label><input id="crtvTitle" placeholder="Creative title"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>Video URL *</label><input id="crtvVideoUrl" placeholder="https://cdn.example.com/video.mp4"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>VAST URL (3rd-party wrapper)</label><input id="crtvVastUrl" placeholder="https://dsp.example.com/vast?id=..."></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>Landing URL *</label><input id="crtvLandingUrl" placeholder="https://advertiser.com/landing"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Companion Image URL</label><input id="crtvCompanionUrl" placeholder="https://cdn.example.com/companion.png"></div>
+        <div class="form-group"><label>Creative Type</label><select id="crtvType"><option value="1">CTV Video</option><option value="2">In-App Video</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Duration (sec)</label><input id="crtvDuration" type="number" value="30"></div>
+        <div class="form-group"><label>MIME Type</label><input id="crtvMime" value="video/mp4"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Width</label><input id="crtvW" type="number" value="1920"></div>
+        <div class="form-group"><label>Height</label><input id="crtvH" type="number" value="1080"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Bitrate (kbps)</label><input id="crtvBitrate" type="number" value="2500"></div>
+        <div class="form-group"><label>Placement</label><select id="crtvPlacement"><option value="1">Pre-roll</option><option value="2">Mid-roll</option><option value="3">Post-roll</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Skippable</label><select id="crtvSkippable"><option value="true">Yes</option><option value="false">No</option></select></div>
+        <div class="form-group"><label>Skip After (sec)</label><input id="crtvSkipAfter" type="number" value="5"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Quality Score (0-100)</label><input id="crtvQuality" type="number" min="0" max="100" value="80"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('crtvModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCreative()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Targeting Rule Modal -->
+<div class="modal-overlay" id="targetModal">
+  <div class="modal">
+    <div class="modal-header"><h3>Add Targeting Rule</h3><button class="btn-icon" onclick="closeModal('targetModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Rule Type *</label>
+          <select id="targetType" onchange="updateRuleValueHint()">
+            <option value="geo">Geo (countries)</option>
+            <option value="device">Device type</option>
+            <option value="app_bundle">App Bundle</option>
+            <option value="content_genre">Content Genre</option>
+            <option value="environment">Environment</option>
+            <option value="daypart">Daypart (hours)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Include / Exclude</label>
+          <select id="targetInclude"><option value="true">Include</option><option value="false">Exclude</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Rule Value (JSON) *</label>
+          <textarea id="targetValue" placeholder='{"countries": ["US", "GB"]}'></textarea>
+          <small style="color:var(--fg3);font-size:11px;margin-top:4px" id="targetHint">e.g. {"countries": ["US", "CA", "GB"]}</small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('targetModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTargetingRule()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CONFIG & STATE
+// ═══════════════════════════════════════════════════════════════
+let API_BASE = localStorage.getItem('liteads_api_base') || window.location.origin;
+let advertisersCache = [];
+let campaignsCache = [];
+
+const STATUS_MAP = {0: 'Inactive', 1: 'Active', 2: 'Paused', 3: 'Deleted'};
+const STATUS_CLASS = {0: 'badge-inactive', 1: 'badge-active', 2: 'badge-paused', 3: 'badge-deleted'};
+const ENV_MAP = {1: 'CTV', 2: 'In-App', null: 'Both', undefined: 'Both', '': 'Both'};
+const CREATIVE_TYPE_MAP = {1: 'CTV Video', 2: 'In-App Video'};
+const PLACEMENT_MAP = {1: 'Pre-roll', 2: 'Mid-roll', 3: 'Post-roll'};
+const RULE_HINTS = {
+  geo: 'e.g. {"countries": ["US", "CA", "GB"]}',
+  device: 'e.g. {"types": ["ctv", "mobile", "tablet"]}',
+  app_bundle: 'e.g. {"bundles": ["com.roku.app1"]}',
+  content_genre: 'e.g. {"genres": ["news", "sports"]}',
+  environment: 'e.g. {"env": "ctv"} or {"env": "inapp"}',
+  daypart: 'e.g. {"hours": [8,9,10,11,12,18,19,20]}',
+};
+
+// ═══════════════════════════════════════════════════════════════
+// API HELPERS
+// ═══════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const url = `${API_BASE}${path}`;
+  const config = {
+    headers: {'Content-Type': 'application/json', ...opts.headers},
+    ...opts,
+  };
+  if (opts.body && typeof opts.body === 'object') config.body = JSON.stringify(opts.body);
+  try {
+    const res = await fetch(url, config);
+    if (res.status === 204) return null;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.detail || `HTTP ${res.status}`);
+    return data;
+  } catch (err) {
+    toast(err.message || 'API request failed', 'error');
+    throw err;
+  }
+}
+
+function $(id) { return document.getElementById(id); }
+function $val(id) { return $(id).value; }
+function $setVal(id, v) { $(id).value = v ?? ''; }
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  $(`page-${name}`).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${name}"]`).classList.add('active');
+  const titles = {dashboard:'Dashboard',advertisers:'Advertisers',campaigns:'Campaigns',creatives:'Creatives',targeting:'Targeting Rules',vast:'VAST Tag Builder',analytics:'Analytics',settings:'Settings'};
+  $('pageTitle').textContent = titles[name] || name;
+
+  // Auto-load data for specific pages
+  switch(name) {
+    case 'dashboard': loadDashboard(); break;
+    case 'advertisers': loadAdvertisers(); break;
+    case 'campaigns': loadCampaigns(); break;
+    case 'creatives': loadCreatives(); break;
+    case 'targeting': loadCampaignDropdowns(); break;
+    case 'analytics': loadCampaignDropdowns(); break;
+  }
+}
+
+function refreshCurrentPage() {
+  const active = document.querySelector('.nav-item.active');
+  if (active) showPage(active.dataset.page);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  $('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════════
+function openModal(id) { $(id).classList.add('active'); }
+function closeModal(id) { $(id).classList.remove('active'); }
+
+// ═══════════════════════════════════════════════════════════════
+// FORMAT HELPERS
+// ═══════════════════════════════════════════════════════════════
+function fmtMoney(n) { return '$' + Number(n || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function fmtNum(n) { return Number(n || 0).toLocaleString('en-US'); }
+function badge(status) { return `<span class="badge ${STATUS_CLASS[status] || 'badge-inactive'}">${STATUS_MAP[status] || 'Unknown'}</span>`; }
+
+// ═══════════════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const [advs, camps] = await Promise.all([
+      api('/api/v1/admin/advertisers'),
+      api('/api/v1/admin/campaigns'),
+    ]);
+    advertisersCache = advs;
+    campaignsCache = camps;
+
+    const activeAdvs = advs.filter(a => a.status === 1).length;
+    const activeCamps = camps.filter(c => c.status === 1).length;
+    const totalImps = camps.reduce((s, c) => s + (c.impressions || 0), 0);
+    const totalClicks = camps.reduce((s, c) => s + (c.clicks || 0), 0);
+
+    $('statAdvs').textContent = fmtNum(activeAdvs);
+    $('statCamps').textContent = fmtNum(activeCamps);
+    $('statImps').textContent = fmtNum(totalImps);
+    $('statClicks').textContent = fmtNum(totalClicks);
+
+    const recent = camps.slice(0, 10);
+    $('dashCampaigns').innerHTML = recent.length ? recent.map(c => `
+      <tr>
+        <td>${c.id}</td>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td>${c.advertiser_id}</td>
+        <td>${badge(c.status)}</td>
+        <td>${fmtMoney(c.budget_daily)}/day</td>
+        <td>${fmtMoney(c.spent_today)}</td>
+        <td>${fmtNum(c.impressions)}</td>
+        <td>${fmtNum(c.clicks)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--fg3);padding:30px">No campaigns yet</td></tr>';
+
+    $('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(e) { /* toast already shown */ }
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// ═══════════════════════════════════════════════════════════════
+// ADVERTISERS
+// ═══════════════════════════════════════════════════════════════
+async function loadAdvertisers() {
+  try {
+    const data = await api('/api/v1/admin/advertisers');
+    advertisersCache = data;
+    $('advTableBody').innerHTML = data.length ? data.map(a => `
+      <tr>
+        <td>${a.id}</td>
+        <td><strong>${esc(a.name)}</strong></td>
+        <td>${esc(a.company || '—')}</td>
+        <td>${esc(a.contact_email || '—')}</td>
+        <td>${fmtMoney(a.balance)}</td>
+        <td>${fmtMoney(a.daily_budget)}</td>
+        <td>${badge(a.status)}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editAdvertiser(${a.id})">Edit</button>
+          ${a.status !== 3 ? `<button class="btn btn-danger btn-sm" onclick="deleteAdvertiser(${a.id})">Del</button>` : ''}
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="8" class="empty">No advertisers yet. Click "+ New Advertiser" to create one.</td></tr>';
+  } catch(e) {}
+}
+
+async function editAdvertiser(id) {
+  try {
+    const a = await api(`/api/v1/admin/advertisers/${id}`);
+    $('advModalTitle').textContent = 'Edit Advertiser';
+    $setVal('advEditId', id);
+    $setVal('advName', a.name);
+    $setVal('advCompany', a.company);
+    $setVal('advEmail', a.contact_email);
+    $setVal('advBalance', a.balance);
+    $setVal('advDailyBudget', a.daily_budget);
+    openModal('advModal');
+  } catch(e) {}
+}
+
+async function saveAdvertiser() {
+  const id = $val('advEditId');
+  const body = {
+    name: $val('advName'),
+    company: $val('advCompany') || null,
+    contact_email: $val('advEmail') || null,
+    balance: parseFloat($val('advBalance')) || 0,
+    daily_budget: parseFloat($val('advDailyBudget')) || 0,
+  };
+  if (!body.name) return toast('Name is required', 'error');
+  try {
+    if (id) {
+      await api(`/api/v1/admin/advertisers/${id}`, {method: 'PUT', body});
+      toast('Advertiser updated');
+    } else {
+      await api('/api/v1/admin/advertisers', {method: 'POST', body});
+      toast('Advertiser created');
+    }
+    closeModal('advModal');
+    clearAdvForm();
+    loadAdvertisers();
+  } catch(e) {}
+}
+
+async function deleteAdvertiser(id) {
+  if (!confirm('Delete this advertiser?')) return;
+  try {
+    await api(`/api/v1/admin/advertisers/${id}`, {method: 'DELETE'});
+    toast('Advertiser deleted');
+    loadAdvertisers();
+  } catch(e) {}
+}
+
+function clearAdvForm() {
+  $setVal('advEditId',''); $setVal('advName',''); $setVal('advCompany','');
+  $setVal('advEmail',''); $setVal('advBalance','0'); $setVal('advDailyBudget','0');
+  $('advModalTitle').textContent = 'New Advertiser';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CAMPAIGNS
+// ═══════════════════════════════════════════════════════════════
+async function loadCampaigns() {
+  try {
+    const data = await api('/api/v1/admin/campaigns');
+    campaignsCache = data;
+    $('campTableBody').innerHTML = data.length ? data.map(c => `
+      <tr>
+        <td>${c.id}</td>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td>${c.advertiser_id}</td>
+        <td>${ENV_MAP[c.environment] || 'Both'}</td>
+        <td>${fmtMoney(c.bid_amount)}</td>
+        <td>${fmtMoney(c.budget_daily)}</td>
+        <td>${fmtMoney(c.spent_today)}</td>
+        <td>${fmtNum(c.impressions)}</td>
+        <td>${fmtNum(c.completions)}</td>
+        <td>${badge(c.status)}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editCampaign(${c.id})">Edit</button>
+          <button class="btn btn-sm" style="background:var(--yellow);color:#000" onclick="toggleCampaignStatus(${c.id},${c.status})">${c.status===1?'Pause':'Resume'}</button>
+          ${c.status !== 3 ? `<button class="btn btn-danger btn-sm" onclick="deleteCampaign(${c.id})">Del</button>` : ''}
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="11" class="empty">No campaigns yet</td></tr>';
+  } catch(e) {}
+}
+
+function openCampaignModal() {
+  clearCampForm();
+  populateAdvDropdown('campAdvId');
+  openModal('campModal');
+}
+
+async function editCampaign(id) {
+  try {
+    const c = await api(`/api/v1/admin/campaigns/${id}`);
+    populateAdvDropdown('campAdvId');
+    $('campModalTitle').textContent = 'Edit Campaign';
+    $setVal('campEditId', id);
+    $setVal('campAdvId', c.advertiser_id);
+    $setVal('campName', c.name);
+    $setVal('campDesc', c.description);
+    $setVal('campBid', c.bid_amount);
+    $setVal('campEnv', c.environment ?? '');
+    $setVal('campBudgetDaily', c.budget_daily);
+    $setVal('campBudgetTotal', c.budget_total);
+    $setVal('campFreqH', c.freq_cap_hourly);
+    $setVal('campFreqD', c.freq_cap_daily);
+    if (c.start_time) $setVal('campStart', c.start_time.substring(0,16));
+    if (c.end_time) $setVal('campEnd', c.end_time.substring(0,16));
+    openModal('campModal');
+  } catch(e) {}
+}
+
+async function saveCampaign() {
+  const id = $val('campEditId');
+  const body = {
+    advertiser_id: parseInt($val('campAdvId')),
+    name: $val('campName'),
+    description: $val('campDesc') || null,
+    bid_amount: parseFloat($val('campBid')),
+    environment: $val('campEnv') ? parseInt($val('campEnv')) : null,
+    budget_daily: parseFloat($val('campBudgetDaily')) || 0,
+    budget_total: parseFloat($val('campBudgetTotal')) || 0,
+    freq_cap_hourly: parseInt($val('campFreqH')) || 3,
+    freq_cap_daily: parseInt($val('campFreqD')) || 10,
+    start_time: $val('campStart') || null,
+    end_time: $val('campEnd') || null,
+  };
+  if (!body.name || !body.bid_amount) return toast('Name and Bid are required', 'error');
+  try {
+    if (id) {
+      delete body.advertiser_id;
+      await api(`/api/v1/admin/campaigns/${id}`, {method: 'PUT', body});
+      toast('Campaign updated');
+    } else {
+      await api('/api/v1/admin/campaigns', {method: 'POST', body});
+      toast('Campaign created');
+    }
+    closeModal('campModal');
+    clearCampForm();
+    loadCampaigns();
+  } catch(e) {}
+}
+
+async function toggleCampaignStatus(id, currentStatus) {
+  const newStatus = currentStatus === 1 ? 2 : 1;
+  try {
+    await api(`/api/v1/admin/campaigns/${id}/status`, {method: 'PATCH', body: {status: newStatus}});
+    toast(`Campaign ${newStatus === 1 ? 'resumed' : 'paused'}`);
+    loadCampaigns();
+  } catch(e) {}
+}
+
+async function deleteCampaign(id) {
+  if (!confirm('Delete this campaign?')) return;
+  try {
+    await api(`/api/v1/admin/campaigns/${id}`, {method: 'DELETE'});
+    toast('Campaign deleted');
+    loadCampaigns();
+  } catch(e) {}
+}
+
+function clearCampForm() {
+  $('campModalTitle').textContent = 'New Campaign';
+  $setVal('campEditId',''); $setVal('campName',''); $setVal('campDesc','');
+  $setVal('campBid','5.00'); $setVal('campEnv',''); $setVal('campBudgetDaily','100');
+  $setVal('campBudgetTotal','10000'); $setVal('campFreqH','3'); $setVal('campFreqD','10');
+  $setVal('campStart',''); $setVal('campEnd','');
+}
+
+function populateAdvDropdown(selectId) {
+  const sel = $(selectId);
+  sel.innerHTML = advertisersCache.filter(a => a.status === 1).map(a =>
+    `<option value="${a.id}">${a.name} (#${a.id})</option>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CREATIVES
+// ═══════════════════════════════════════════════════════════════
+async function loadCreatives() {
+  try {
+    // We need to iterate campaigns to get creatives since there's no list-all endpoint
+    // But we can get individual creatives. Let's show creatives per campaign.
+    if (!campaignsCache.length) {
+      campaignsCache = await api('/api/v1/admin/campaigns');
+    }
+
+    // Fetch creatives for each campaign (the admin only has get-by-id)
+    // Since we don't have a list-all-creatives endpoint, we'll show campaigns and let users drill in
+    // Actually, looking at the schema, there IS a campaign detail that shows creatives
+    // Let's try to fetch each campaign's creatives
+    let allCreatives = [];
+    for (const camp of campaignsCache) {
+      try {
+        // Try getting campaign detail which may include creatives
+        const detail = await api(`/api/v1/admin/campaigns/${camp.id}`);
+        if (detail.creatives) {
+          allCreatives.push(...detail.creatives);
+        }
+      } catch(e) { /* skip */ }
+    }
+
+    // If we couldn't get creatives that way, show a message
+    if (allCreatives.length === 0 && campaignsCache.length > 0) {
+      // Try getting creatives by sequential IDs (1-50)
+      const promises = [];
+      for (let i = 1; i <= 50; i++) {
+        promises.push(
+          api(`/api/v1/admin/creatives/${i}`).catch(() => null)
+        );
+      }
+      const results = await Promise.all(promises);
+      allCreatives = results.filter(Boolean);
+    }
+
+    $('crtvTableBody').innerHTML = allCreatives.length ? allCreatives.map(c => `
+      <tr>
+        <td>${c.id}</td>
+        <td><strong>${esc(c.title)}</strong></td>
+        <td>${c.campaign_id}</td>
+        <td>${CREATIVE_TYPE_MAP[c.creative_type] || c.creative_type}</td>
+        <td>${c.duration}s</td>
+        <td>${c.width}x${c.height}</td>
+        <td>${PLACEMENT_MAP[c.placement] || c.placement}</td>
+        <td>${c.quality_score}/100</td>
+        <td>${badge(c.status)}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="editCreative(${c.id})">Edit</button>
+          ${c.status !== 3 ? `<button class="btn btn-danger btn-sm" onclick="deleteCreative(${c.id})">Del</button>` : ''}
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="10" class="empty">No creatives yet. Click "+ New Creative" to add one.</td></tr>';
+  } catch(e) {}
+}
+
+function openCreativeModal() {
+  clearCrtvForm();
+  populateCampDropdown('crtvCampId');
+  openModal('crtvModal');
+}
+
+async function editCreative(id) {
+  try {
+    const c = await api(`/api/v1/admin/creatives/${id}`);
+    populateCampDropdown('crtvCampId');
+    $('crtvModalTitle').textContent = 'Edit Creative';
+    $setVal('crtvEditId', id);
+    $setVal('crtvCampId', c.campaign_id);
+    $setVal('crtvTitle', c.title);
+    $setVal('crtvVideoUrl', c.video_url);
+    $setVal('crtvVastUrl', c.vast_url);
+    $setVal('crtvLandingUrl', c.landing_url);
+    $setVal('crtvCompanionUrl', c.companion_image_url);
+    $setVal('crtvType', c.creative_type);
+    $setVal('crtvDuration', c.duration);
+    $setVal('crtvMime', c.mime_type);
+    $setVal('crtvW', c.width);
+    $setVal('crtvH', c.height);
+    $setVal('crtvBitrate', c.bitrate);
+    $setVal('crtvPlacement', c.placement);
+    $setVal('crtvSkippable', c.skippable ? 'true' : 'false');
+    $setVal('crtvSkipAfter', c.skip_after);
+    $setVal('crtvQuality', c.quality_score);
+    openModal('crtvModal');
+  } catch(e) {}
+}
+
+async function saveCreative() {
+  const id = $val('crtvEditId');
+  const body = {
+    campaign_id: parseInt($val('crtvCampId')),
+    title: $val('crtvTitle'),
+    video_url: $val('crtvVideoUrl'),
+    vast_url: $val('crtvVastUrl') || null,
+    landing_url: $val('crtvLandingUrl'),
+    companion_image_url: $val('crtvCompanionUrl') || null,
+    creative_type: parseInt($val('crtvType')),
+    duration: parseInt($val('crtvDuration')),
+    mime_type: $val('crtvMime'),
+    width: parseInt($val('crtvW')),
+    height: parseInt($val('crtvH')),
+    bitrate: parseInt($val('crtvBitrate')) || null,
+    placement: parseInt($val('crtvPlacement')),
+    skippable: $val('crtvSkippable') === 'true',
+    skip_after: parseInt($val('crtvSkipAfter')),
+    quality_score: parseInt($val('crtvQuality')),
+  };
+  if (!body.title || !body.video_url || !body.landing_url) return toast('Title, Video URL, and Landing URL are required', 'error');
+  try {
+    if (id) {
+      delete body.campaign_id;
+      await api(`/api/v1/admin/creatives/${id}`, {method: 'PUT', body});
+      toast('Creative updated');
+    } else {
+      await api('/api/v1/admin/creatives', {method: 'POST', body});
+      toast('Creative created');
+    }
+    closeModal('crtvModal');
+    clearCrtvForm();
+    loadCreatives();
+  } catch(e) {}
+}
+
+async function deleteCreative(id) {
+  if (!confirm('Delete this creative?')) return;
+  try {
+    await api(`/api/v1/admin/creatives/${id}`, {method: 'DELETE'});
+    toast('Creative deleted');
+    loadCreatives();
+  } catch(e) {}
+}
+
+function clearCrtvForm() {
+  $('crtvModalTitle').textContent = 'New Creative';
+  $setVal('crtvEditId',''); $setVal('crtvTitle',''); $setVal('crtvVideoUrl','');
+  $setVal('crtvVastUrl',''); $setVal('crtvLandingUrl',''); $setVal('crtvCompanionUrl','');
+  $setVal('crtvType','1'); $setVal('crtvDuration','30'); $setVal('crtvMime','video/mp4');
+  $setVal('crtvW','1920'); $setVal('crtvH','1080'); $setVal('crtvBitrate','2500');
+  $setVal('crtvPlacement','1'); $setVal('crtvSkippable','true'); $setVal('crtvSkipAfter','5');
+  $setVal('crtvQuality','80');
+}
+
+function populateCampDropdown(selectId) {
+  const sel = $(selectId);
+  sel.innerHTML = campaignsCache.filter(c => c.status !== 3).map(c =>
+    `<option value="${c.id}">${c.name} (#${c.id})</option>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TARGETING
+// ═══════════════════════════════════════════════════════════════
+async function loadCampaignDropdowns() {
+  if (!campaignsCache.length) {
+    try { campaignsCache = await api('/api/v1/admin/campaigns'); } catch(e) {}
+  }
+  // Targeting page dropdown
+  const tSel = $('targetCampSelect');
+  if (tSel) {
+    const currentVal = tSel.value;
+    tSel.innerHTML = '<option value="">— Choose campaign —</option>' +
+      campaignsCache.filter(c => c.status !== 3).map(c =>
+        `<option value="${c.id}">${c.name} (#${c.id})</option>`
+      ).join('');
+    tSel.value = currentVal;
+  }
+  // Analytics page dropdown
+  const aSel = $('analyticsCampSelect');
+  if (aSel) {
+    const currentVal = aSel.value;
+    aSel.innerHTML = '<option value="">— All Campaigns —</option>' +
+      campaignsCache.map(c =>
+        `<option value="${c.id}">${c.name} (#${c.id})</option>`
+      ).join('');
+    aSel.value = currentVal;
+  }
+}
+
+async function loadTargetingRules() {
+  const campId = $val('targetCampSelect');
+  $('btnAddRule').disabled = !campId;
+  if (!campId) {
+    $('targetTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg3);padding:30px">Select a campaign above</td></tr>';
+    return;
+  }
+  try {
+    const rules = await api(`/api/v1/admin/campaigns/${campId}/targeting`);
+    $('targetTableBody').innerHTML = rules.length ? rules.map(r => `
+      <tr>
+        <td>${r.id}</td>
+        <td><strong>${esc(r.rule_type)}</strong></td>
+        <td><span class="badge ${r.is_include ? 'badge-active' : 'badge-inactive'}">${r.is_include ? 'Include' : 'Exclude'}</span></td>
+        <td><code style="font-size:11px;color:var(--fg2)">${esc(JSON.stringify(r.rule_value))}</code></td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteTargetingRule(${r.id})">Delete</button></td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--fg3);padding:30px">No targeting rules for this campaign</td></tr>';
+  } catch(e) {}
+}
+
+function openTargetingModal() {
+  $setVal('targetType', 'geo');
+  $setVal('targetInclude', 'true');
+  $setVal('targetValue', '');
+  updateRuleValueHint();
+  openModal('targetModal');
+}
+
+function updateRuleValueHint() {
+  $('targetHint').textContent = RULE_HINTS[$val('targetType')] || '';
+}
+
+async function saveTargetingRule() {
+  const campId = $val('targetCampSelect');
+  let ruleValue;
+  try { ruleValue = JSON.parse($val('targetValue')); } catch(e) {
+    return toast('Rule value must be valid JSON', 'error');
+  }
+  const body = {
+    rule_type: $val('targetType'),
+    rule_value: ruleValue,
+    is_include: $val('targetInclude') === 'true',
+  };
+  try {
+    await api(`/api/v1/admin/campaigns/${campId}/targeting`, {method: 'POST', body});
+    toast('Targeting rule added');
+    closeModal('targetModal');
+    loadTargetingRules();
+  } catch(e) {}
+}
+
+async function deleteTargetingRule(ruleId) {
+  if (!confirm('Delete this targeting rule?')) return;
+  try {
+    await api(`/api/v1/admin/targeting/${ruleId}`, {method: 'DELETE'});
+    toast('Rule deleted');
+    loadTargetingRules();
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VAST TAG BUILDER
+// ═══════════════════════════════════════════════════════════════
+function buildVastTag() {
+  const slotId = $val('vastSlotId');
+  if (!slotId) return toast('Slot ID is required', 'error');
+
+  let url = `${API_BASE}/api/vast?slot_id=${encodeURIComponent(slotId)}`;
+  url += `&env=${$val('vastEnv')}`;
+  url += `&w=${$val('vastW')}&h=${$val('vastH')}`;
+  url += `&max_dur=${$val('vastDur')}`;
+  url += `&vast_ver=${$val('vastVer')}`;
+
+  const bundle = $val('vastBundle');
+  const appName = $val('vastAppName');
+  if (bundle) url += `&app_bundle=${encodeURIComponent(bundle)}`;
+  if (appName) url += `&app_name=${encodeURIComponent(appName)}`;
+
+  // Macros
+  if ($('macroIP').checked) url += '&ip=[IP]';
+  if ($('macroUA').checked) url += '&ua=[UA]';
+  if ($('macroIFA').checked) url += '&ifa=[IFA]';
+  if ($('macroCB').checked) url += '&cb=[CACHEBUSTER]';
+
+  $('vastTagUrl').textContent = url;
+  $('vastResult').style.display = 'block';
+}
+
+function copyVastTag() {
+  navigator.clipboard.writeText($('vastTagUrl').textContent).then(
+    () => toast('Copied to clipboard'),
+    () => toast('Failed to copy', 'error')
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════════
+let currentAnalyticsTab = 'today';
+
+function switchAnalyticsTab(tab) {
+  currentAnalyticsTab = tab;
+  document.querySelectorAll('#page-analytics .tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
+  const campId = $val('analyticsCampSelect');
+
+  if (currentAnalyticsTab === 'demand') {
+    try {
+      const data = await api('/api/v1/analytics/reports/demand');
+      renderDemandReport(data);
+    } catch(e) {}
+    return;
+  }
+
+  if (currentAnalyticsTab === 'supply') {
+    try {
+      const data = await api('/api/v1/analytics/reports/supply');
+      renderSupplyReport(data);
+    } catch(e) {}
+    return;
+  }
+
+  if (!campId) {
+    // Show all campaigns summary
+    try {
+      const data = await api('/api/v1/analytics/campaigns');
+      let totalImps = 0, totalCompl = 0, totalClicks = 0;
+      if (Array.isArray(data)) {
+        data.forEach(c => {
+          totalImps += c.impressions || 0;
+          totalCompl += c.completions || 0;
+          totalClicks += c.clicks || 0;
+        });
+      }
+      $('anImps').textContent = fmtNum(totalImps);
+      $('anCompl').textContent = fmtNum(totalCompl);
+      $('anClicks').textContent = fmtNum(totalClicks);
+      $('anVtr').textContent = totalImps > 0 ? ((totalCompl / totalImps) * 100).toFixed(1) + '%' : '—';
+
+      $('analyticsTableWrap').innerHTML = Array.isArray(data) && data.length ?
+        `<table><thead><tr><th>Campaign</th><th>Imps</th><th>Completions</th><th>Clicks</th><th>CTR</th><th>VTR</th><th>Spend</th></tr></thead>
+        <tbody>${data.map(c => `<tr>
+          <td><strong>${esc(c.name || `Campaign ${c.campaign_id || c.id}`)}</strong></td>
+          <td>${fmtNum(c.impressions)}</td>
+          <td>${fmtNum(c.completions)}</td>
+          <td>${fmtNum(c.clicks)}</td>
+          <td>${c.impressions ? ((c.clicks / c.impressions) * 100).toFixed(2) + '%' : '—'}</td>
+          <td>${c.impressions ? ((c.completions / c.impressions) * 100).toFixed(1) + '%' : '—'}</td>
+          <td>${fmtMoney(c.spent_today || c.spend || 0)}</td>
+        </tr>`).join('')}</tbody></table>`
+        : '<p style="color:var(--fg3);text-align:center;padding:20px">No analytics data available</p>';
+    } catch(e) {
+      $('analyticsTableWrap').innerHTML = '<p style="color:var(--fg3);text-align:center;padding:20px">Error loading analytics</p>';
+    }
+    return;
+  }
+
+  // Single campaign analytics
+  if (currentAnalyticsTab === 'today') {
+    try {
+      const data = await api(`/api/v1/analytics/campaign/${campId}/today`);
+      $('anImps').textContent = fmtNum(data.impressions || 0);
+      $('anCompl').textContent = fmtNum(data.completions || 0);
+      $('anClicks').textContent = fmtNum(data.clicks || 0);
+      const vtr = (data.impressions || 0) > 0 ? ((data.completions || 0) / data.impressions * 100).toFixed(1) + '%' : '—';
+      $('anVtr').textContent = vtr;
+      $('analyticsTableWrap').innerHTML =
+        `<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>` +
+        Object.entries(data).map(([k,v]) => `<tr><td>${esc(k)}</td><td>${typeof v === 'number' ? (k.includes('price')||k.includes('spend')||k.includes('revenue') ? fmtMoney(v) : fmtNum(v)) : esc(String(v))}</td></tr>`).join('') +
+        `</tbody></table>`;
+    } catch(e) { $('analyticsTableWrap').innerHTML = '<p style="color:var(--red);text-align:center;padding:20px">Failed to load today stats</p>'; }
+  } else if (currentAnalyticsTab === 'budget') {
+    try {
+      const data = await api(`/api/v1/analytics/campaign/${campId}/budget`);
+      $('analyticsTableWrap').innerHTML =
+        `<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>` +
+        Object.entries(data).map(([k,v]) => `<tr><td>${esc(k)}</td><td>${typeof v === 'number' ? (k.includes('budget')||k.includes('spent')||k.includes('balance') ? fmtMoney(v) : fmtNum(v)) : esc(String(v))}</td></tr>`).join('') +
+        `</tbody></table>`;
+    } catch(e) { $('analyticsTableWrap').innerHTML = '<p style="color:var(--red);text-align:center;padding:20px">Failed to load budget info</p>'; }
+  }
+}
+
+function renderDemandReport(data) {
+  const rows = Array.isArray(data) ? data : (data.rows || []);
+  $('analyticsTableWrap').innerHTML = rows.length ?
+    `<table><thead><tr><th>ADomain</th><th>Demand ID</th><th>Requests</th><th>Wins</th><th>Imps</th><th>Revenue</th><th>eCPM</th><th>Win Rate</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><strong>${esc(r.adomain || '—')}</strong></td>
+      <td>${r.demand_id || '—'}</td>
+      <td>${fmtNum(r.requests || r.ad_requests || 0)}</td>
+      <td>${fmtNum(r.wins || 0)}</td>
+      <td>${fmtNum(r.impressions || 0)}</td>
+      <td>${fmtMoney(r.revenue || r.gross_revenue || 0)}</td>
+      <td>${fmtMoney(r.ecpm || 0)}</td>
+      <td>${r.win_rate ? r.win_rate.toFixed(1) + '%' : '—'}</td>
+    </tr>`).join('')}</tbody></table>`
+    : '<p style="color:var(--fg3);text-align:center;padding:20px">No demand report data</p>';
+}
+
+function renderSupplyReport(data) {
+  const rows = Array.isArray(data) ? data : (data.rows || []);
+  $('analyticsTableWrap').innerHTML = rows.length ?
+    `<table><thead><tr><th>Source</th><th>Bundle</th><th>Requests</th><th>Fills</th><th>Fill Rate</th><th>Revenue</th><th>eCPM</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><strong>${esc(r.source_name || r.source || '—')}</strong></td>
+      <td>${esc(r.bundle_id || r.bundle || '—')}</td>
+      <td>${fmtNum(r.requests || r.ad_requests || 0)}</td>
+      <td>${fmtNum(r.fills || r.impressions || 0)}</td>
+      <td>${r.fill_rate ? r.fill_rate.toFixed(1) + '%' : '—'}</td>
+      <td>${fmtMoney(r.revenue || 0)}</td>
+      <td>${fmtMoney(r.ecpm || 0)}</td>
+    </tr>`).join('')}</tbody></table>`
+    : '<p style="color:var(--fg3);text-align:center;padding:20px">No supply report data</p>';
+}
+
+async function flushStats() {
+  try {
+    await api('/api/v1/analytics/flush', {method: 'POST'});
+    toast('Stats flushed to database');
+    loadAnalytics();
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════════
+function saveSettings() {
+  const base = $val('apiBaseUrl').replace(/\/+$/, '');
+  API_BASE = base || window.location.origin;
+  localStorage.setItem('liteads_api_base', API_BASE);
+  toast('Settings saved');
+  // Update Grafana link
+  try {
+    const u = new URL(API_BASE);
+    $('grafanaLink').href = `${u.protocol}//${u.hostname}:3000`;
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  $setVal('apiBaseUrl', API_BASE);
+  // Update grafana link
+  try {
+    const u = new URL(API_BASE);
+    $('grafanaLink').href = `${u.protocol}//${u.hostname}:3000`;
+  } catch(e) {}
+  loadDashboard();
+});
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+});
+
+// Keyboard shortcut: Escape to close modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+  }
+});
+</script>
+</body>
+</html>

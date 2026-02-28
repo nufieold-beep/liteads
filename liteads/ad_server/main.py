@@ -7,11 +7,13 @@ VAST 2.x–4.x, and nurl/burl support.
 
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from liteads.ad_server.middleware.metrics import MetricsMiddleware, metrics_endpoint
 from liteads.ad_server.routers import ad, event, health, openrtb, vast_tag
@@ -169,6 +171,19 @@ def create_app() -> FastAPI:
     app.include_router(admin_router.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(analytics_router.router, prefix="/api/v1/analytics", tags=["analytics"])
     app.include_router(demand_router.router, prefix="/api/v1/demand", tags=["demand"])
+
+    # ── Admin Dashboard UI ─────────────────────────────────────
+    _static_dir = Path(__file__).resolve().parent / "static"
+
+    @app.get("/dashboard", response_class=HTMLResponse, tags=["dashboard"])
+    async def dashboard_ui():
+        """Serve the admin dashboard single-page application."""
+        html_path = _static_dir / "dashboard.html"
+        return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+    # Serve any additional static assets (JS, CSS, images) if needed
+    if _static_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
     return app
 
