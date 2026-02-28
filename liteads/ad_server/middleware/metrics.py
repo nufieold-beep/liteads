@@ -137,6 +137,73 @@ MODEL_VERSION = Gauge(
     ["model_name"],
 )
 
+# ── CTV / SSAI delivery health metrics ──────────────────────────────────
+
+VAST_ERRORS_TOTAL = Counter(
+    "liteads_vast_errors_total",
+    "VAST error events by error code and campaign",
+    ["error_code", "campaign_id"],
+)
+
+AD_STARTS_TOTAL = Counter(
+    "liteads_ad_starts_total",
+    "Total video ad starts",
+    ["campaign_id"],
+)
+
+AD_COMPLETIONS_TOTAL = Counter(
+    "liteads_ad_completions_total",
+    "Total video ad completions",
+    ["campaign_id"],
+)
+
+AD_SKIPS_TOTAL = Counter(
+    "liteads_ad_skips_total",
+    "Total video ad skips",
+    ["campaign_id"],
+)
+
+NO_BID_TOTAL = Counter(
+    "liteads_no_bid_total",
+    "Total no-bid responses (no fill)",
+    ["reason"],
+)
+
+BID_FLOOR_FILTERED_TOTAL = Counter(
+    "liteads_bid_floor_filtered_total",
+    "Candidates removed by bid floor",
+    ["slot_id"],
+)
+
+AD_POD_REQUESTS_TOTAL = Counter(
+    "liteads_ad_pod_requests_total",
+    "Total ad pod (multi-slot) requests",
+)
+
+AD_POD_FILL_RATE = Histogram(
+    "liteads_ad_pod_fill_rate",
+    "Ad pod fill rate (filled_slots / total_slots)",
+    buckets=(0, 0.25, 0.5, 0.75, 1.0),
+)
+
+AD_POD_REVENUE = Histogram(
+    "liteads_ad_pod_revenue_cpm",
+    "Total CPM revenue per pod",
+    buckets=(0, 1, 2, 5, 10, 20, 50, 100),
+)
+
+QUARTILE_FUNNEL = Counter(
+    "liteads_quartile_funnel_total",
+    "Video playback funnel (impression → start → Q1 → mid → Q3 → complete)",
+    ["stage", "campaign_id"],
+)
+
+WIN_RATE = Histogram(
+    "liteads_win_rate",
+    "Auction win rate per request batch",
+    buckets=(0, 0.1, 0.25, 0.5, 0.75, 1.0),
+)
+
 
 # =============================================================================
 # Metrics Middleware
@@ -298,3 +365,55 @@ def record_db_query_latency(query_type: str, duration: float) -> None:
 def set_model_version(model_name: str, version: float) -> None:
     """Set the current model version."""
     MODEL_VERSION.labels(model_name=model_name).set(version)
+
+
+# ── CTV delivery health helpers ──────────────────────────────────────────
+
+def record_vast_error(error_code: str, campaign_id: str = "unknown") -> None:
+    """Record a VAST error event by error code and campaign."""
+    VAST_ERRORS_TOTAL.labels(error_code=error_code, campaign_id=campaign_id).inc()
+
+
+def record_ad_start(campaign_id: str) -> None:
+    """Record a video ad start event."""
+    AD_STARTS_TOTAL.labels(campaign_id=campaign_id).inc()
+
+
+def record_ad_completion(campaign_id: str) -> None:
+    """Record a video ad completion event."""
+    AD_COMPLETIONS_TOTAL.labels(campaign_id=campaign_id).inc()
+
+
+def record_ad_skip(campaign_id: str) -> None:
+    """Record a video ad skip event."""
+    AD_SKIPS_TOTAL.labels(campaign_id=campaign_id).inc()
+
+
+def record_no_bid(reason: str = "no_fill") -> None:
+    """Record a no-bid (no fill) response."""
+    NO_BID_TOTAL.labels(reason=reason).inc()
+
+
+def record_bid_floor_filtered(slot_id: str, count: int = 1) -> None:
+    """Record candidates filtered by bid floor."""
+    BID_FLOOR_FILTERED_TOTAL.labels(slot_id=slot_id).inc(count)
+
+
+def record_pod_request() -> None:
+    """Record an ad pod request."""
+    AD_POD_REQUESTS_TOTAL.inc()
+
+
+def record_pod_fill(fill_rate: float) -> None:
+    """Record pod fill rate."""
+    AD_POD_FILL_RATE.observe(fill_rate)
+
+
+def record_pod_revenue(revenue_cpm: float) -> None:
+    """Record total pod CPM revenue."""
+    AD_POD_REVENUE.observe(revenue_cpm)
+
+
+def record_quartile(stage: str, campaign_id: str) -> None:
+    """Record a quartile funnel event (impression/start/q1/mid/q3/complete)."""
+    QUARTILE_FUNNEL.labels(stage=stage, campaign_id=campaign_id).inc()

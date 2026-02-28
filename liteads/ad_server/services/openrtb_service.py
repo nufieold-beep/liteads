@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Optional
 
 from liteads.ad_server.services.ad_service import AdService
+from liteads.ad_server.services.pod_service import PodBuilder, PodConfig
 from liteads.common.config import get_settings
 from liteads.common.logger import get_logger
 from liteads.common.vast import TrackingEvent, build_vast_xml, build_vast_wrapper_xml
@@ -47,6 +48,7 @@ class OpenRTBService:
     def __init__(self, ad_service: AdService):
         self._ad_service = ad_service
         self._settings = get_settings()
+        self._pod_builder = PodBuilder()
 
     # ------------------------------------------------------------------
     # Public API
@@ -56,11 +58,24 @@ class OpenRTBService:
         """
         Process an OpenRTB bid request and return a bid response.
 
+        Supports single-impression and pod (multi-impression) requests.
+        Pod requests use competitive separation (no duplicate adomains/
+        categories within the same pod) and duration fitting.
+
         Returns ``None`` when there is no fill (caller should return HTTP 204).
         """
         try:
             internal_request = self._to_internal_request(bid_request)
             request_id = internal_request.request_id or bid_request.id
+
+            # Determine if this is a pod request
+            is_pod = self._is_pod_request(bid_request)
+
+            # Request more candidates for pods so we have enough after separation
+            if is_pod:
+                internal_request.num_ads = max(
+                    internal_request.num_ads * 3, 12,
+                )
 
             candidates = await self._ad_service.serve_ads(
                 request=internal_request,
@@ -71,8 +86,17 @@ class OpenRTBService:
                 logger.info(
                     "No fill for OpenRTB request",
                     request_id=bid_request.id,
+                    is_pod=is_pod,
                 )
                 return None
+
+            # Apply pod construction with competitive separation
+            if is_pod:
+                candidates = self._apply_pod_construction(
+                    bid_request, candidates,
+                )
+                if not candidates:
+                    return None
 
             return self._to_bid_response(bid_request, candidates, request_id)
 
@@ -82,6 +106,64 @@ class OpenRTBService:
                 id=bid_request.id,
                 nbr=NoBidReason.TECHNICAL_ERROR,
             )
+
+    def _is_pod_request(self, br: BidRequest) -> bool:
+        """Detect if bid request is for an ad pod."""
+        if len(br.imp) > 1:
+            return True
+        imp = br.imp[0]
+        if imp.video:
+            if imp.video.poddur and imp.video.poddur > 0:
+                return True
+            if imp.video.maxseq and imp.video.maxseq > 1:
+                return True
+            if imp.video.podid:
+                return True
+        return False
+
+    def _apply_pod_construction(
+        self, br: BidRequest, candidates: list[AdCandidate],
+    ) -> list[AdCandidate]:
+        """Apply pod construction with competitive separation."""
+        imp = br.imp[0]
+        v = imp.video
+
+        pod_duration = 120  # default
+        max_ads = len(br.imp) if len(br.imp) > 1 else 4
+
+        if v:
+            if v.poddur and v.poddur > 0:
+                pod_duration = v.poddur
+            if v.maxseq and v.maxseq > 0:
+                max_ads = v.maxseq
+
+        # Map OpenRTB poddedupe signals to config
+        dedup_signals = [1, 3]  # default: creative + adomain
+        if v and v.poddedupe:
+            dedup_signals = list(v.poddedupe)
+
+        config = PodConfig(
+            pod_id=v.podid if v else "",
+            pod_duration=pod_duration,
+            max_ads=max_ads,
+            enforce_competitive_separation=True,
+            dedup_signals=dedup_signals,
+            allow_partial_fill=True,
+        )
+
+        builder = PodBuilder(config)
+        result = builder.build_pod(candidates, pod_duration, max_ads)
+
+        logger.info(
+            "Pod construction completed",
+            pod_id=config.pod_id,
+            fill_rate=result.fill_rate,
+            filled=result.fill_count,
+            total_slots=result.max_slots,
+            revenue=result.total_revenue,
+        )
+
+        return builder.get_filled_candidates(result)
 
     # ------------------------------------------------------------------
     # OpenRTB → Internal

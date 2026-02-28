@@ -493,7 +493,162 @@ class AnalyticsService:
         return report
 
     # ══════════════════════════════════════════════════════════════════════
-    # 6. Redis → DB flush (HourlyStat persistence)
+    # 6. DELIVERY HEALTH REPORT
+    #    VAST funnel: impressions → start → Q1 → mid → Q3 → complete
+    # ══════════════════════════════════════════════════════════════════════
+
+    async def get_delivery_health_report(
+        self,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        campaign_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Delivery health report with VAST funnel metrics.
+
+        Returns per-campaign and aggregate:
+        - VAST event funnel (impression → start → Q1 → mid → Q3 → complete)
+        - Ad start rate, VTR/completion rate, skip rate, error rate
+        - No-bid rate (from Redis)
+        """
+        # Query ad events grouped by campaign and event_type
+        filters: list[Any] = []
+        if start:
+            filters.append(AdEvent.event_time >= start)
+        if end:
+            filters.append(AdEvent.event_time <= end)
+        if campaign_id:
+            filters.append(AdEvent.campaign_id == campaign_id)
+
+        q = (
+            select(
+                AdEvent.campaign_id,
+                AdEvent.event_type,
+                func.count().label("cnt"),
+            )
+            .where(*filters) if filters else select(
+                AdEvent.campaign_id,
+                AdEvent.event_type,
+                func.count().label("cnt"),
+            )
+        )
+        if filters:
+            q = (
+                select(
+                    AdEvent.campaign_id,
+                    AdEvent.event_type,
+                    func.count().label("cnt"),
+                )
+                .where(*filters)
+                .group_by(AdEvent.campaign_id, AdEvent.event_type)
+            )
+        else:
+            q = (
+                select(
+                    AdEvent.campaign_id,
+                    AdEvent.event_type,
+                    func.count().label("cnt"),
+                )
+                .group_by(AdEvent.campaign_id, AdEvent.event_type)
+            )
+
+        result = await self.session.execute(q)
+        rows = result.all()
+
+        # Build per-campaign funnel
+        campaign_data: dict[int, dict[str, int]] = {}
+        for row in rows:
+            cid = row.campaign_id or 0
+            if cid not in campaign_data:
+                campaign_data[cid] = {
+                    "impressions": 0, "starts": 0,
+                    "first_quartiles": 0, "midpoints": 0,
+                    "third_quartiles": 0, "completions": 0,
+                    "clicks": 0, "skips": 0, "errors": 0,
+                }
+            et = row.event_type
+            cnt = row.cnt
+            if et == EventType.IMPRESSION:
+                campaign_data[cid]["impressions"] = cnt
+            elif et == EventType.START:
+                campaign_data[cid]["starts"] = cnt
+            elif et == EventType.FIRST_QUARTILE:
+                campaign_data[cid]["first_quartiles"] = cnt
+            elif et == EventType.MIDPOINT:
+                campaign_data[cid]["midpoints"] = cnt
+            elif et == EventType.THIRD_QUARTILE:
+                campaign_data[cid]["third_quartiles"] = cnt
+            elif et == EventType.COMPLETE:
+                campaign_data[cid]["completions"] = cnt
+            elif et == EventType.CLICK:
+                campaign_data[cid]["clicks"] = cnt
+            elif et == EventType.SKIP:
+                campaign_data[cid]["skips"] = cnt
+            elif et == EventType.ERROR:
+                campaign_data[cid]["errors"] = cnt
+
+        # Aggregate totals
+        totals = {
+            "impressions": 0, "starts": 0,
+            "first_quartiles": 0, "midpoints": 0,
+            "third_quartiles": 0, "completions": 0,
+            "clicks": 0, "skips": 0, "errors": 0,
+        }
+        campaigns_detail: list[dict[str, Any]] = []
+        for cid, data in campaign_data.items():
+            for k in totals:
+                totals[k] += data[k]
+            imps = data["impressions"]
+            campaigns_detail.append({
+                "campaign_id": cid,
+                **data,
+                "ad_start_rate": round(safe_divide(data["starts"], imps) * 100, 2),
+                "vtr": round(safe_divide(data["completions"], imps) * 100, 2),
+                "skip_rate": round(safe_divide(data["skips"], imps) * 100, 2),
+                "error_rate": round(safe_divide(data["errors"], imps) * 100, 2),
+                "ctr": round(safe_divide(data["clicks"], imps) * 100, 2),
+            })
+
+        total_imps = totals["impressions"]
+
+        # Get no-bid rate from Redis
+        today = current_date()
+        total_ad_reqs = 0
+        total_filled = 0
+        result2 = await self.session.execute(select(Campaign.id))
+        camp_ids = [r[0] for r in result2.all()]
+        for cid in camp_ids:
+            for h in range(24):
+                hour_key = f"{today}{h:02d}"
+                rkey = CacheKeys.stat_hourly(cid, hour_key)
+                raw = await redis_client.hgetall(rkey)
+                total_ad_reqs += int(raw.get("ad_requests", "0"))
+                total_filled += int(raw.get("impressions", "0"))
+
+        return {
+            "funnel": {
+                "impressions": totals["impressions"],
+                "starts": totals["starts"],
+                "first_quartiles": totals["first_quartiles"],
+                "midpoints": totals["midpoints"],
+                "third_quartiles": totals["third_quartiles"],
+                "completions": totals["completions"],
+            },
+            "aggregate": {
+                **totals,
+                "ad_start_rate": round(safe_divide(totals["starts"], total_imps) * 100, 2),
+                "vtr": round(safe_divide(totals["completions"], total_imps) * 100, 2),
+                "skip_rate": round(safe_divide(totals["skips"], total_imps) * 100, 2),
+                "error_rate": round(safe_divide(totals["errors"], total_imps) * 100, 2),
+                "ctr": round(safe_divide(totals["clicks"], total_imps) * 100, 2),
+                "fill_rate": round(safe_divide(total_filled, total_ad_reqs) * 100, 2),
+                "no_bid_rate": round((1 - safe_divide(total_filled, total_ad_reqs)) * 100, 2) if total_ad_reqs > 0 else 0.0,
+                "total_ad_requests": total_ad_reqs,
+            },
+            "by_campaign": campaigns_detail,
+        }
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 7. Redis → DB flush (HourlyStat persistence)
     # ══════════════════════════════════════════════════════════════════════
 
     async def flush_hourly_stats(self, hour: str | None = None) -> int:

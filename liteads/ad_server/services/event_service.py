@@ -18,6 +18,13 @@ from liteads.common.cache import CacheKeys, redis_client
 from liteads.common.logger import get_logger
 from liteads.common.utils import current_date, current_hour
 from liteads.models import AdEvent, Campaign, EventType
+from liteads.ad_server.middleware.metrics import (
+    record_ad_completion,
+    record_ad_skip,
+    record_ad_start,
+    record_quartile,
+    record_vast_error,
+)
 
 logger = get_logger(__name__)
 
@@ -151,6 +158,31 @@ class EventService:
             # Update frequency counter on impression
             if event_type_enum == EventType.IMPRESSION and user_id:
                 await self._update_frequency(user_id, campaign_id)
+
+            # ── Prometheus delivery-health metrics ─────────────────
+            cid_str = str(campaign_id) if campaign_id else "unknown"
+            try:
+                if event_type_enum == EventType.ERROR:
+                    err_code = (extra or {}).get("error_code", "unknown")
+                    record_vast_error(str(err_code), cid_str)
+                elif event_type_enum == EventType.IMPRESSION:
+                    record_quartile("impression", cid_str)
+                elif event_type_enum == EventType.START:
+                    record_ad_start(cid_str)
+                    record_quartile("start", cid_str)
+                elif event_type_enum == EventType.FIRST_QUARTILE:
+                    record_quartile("firstQuartile", cid_str)
+                elif event_type_enum == EventType.MIDPOINT:
+                    record_quartile("midpoint", cid_str)
+                elif event_type_enum == EventType.THIRD_QUARTILE:
+                    record_quartile("thirdQuartile", cid_str)
+                elif event_type_enum == EventType.COMPLETE:
+                    record_ad_completion(cid_str)
+                    record_quartile("complete", cid_str)
+                elif event_type_enum == EventType.SKIP:
+                    record_ad_skip(cid_str)
+            except Exception:
+                pass  # Metrics must never break event tracking
 
             logger.info(
                 "Video event tracked",

@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from liteads.ad_server.services.ad_service import AdService
 from liteads.ad_server.services.event_service import EventService
 from liteads.ad_server.services.openrtb_service import OpenRTBService
+from liteads.ad_server.middleware.metrics import record_no_bid
 from liteads.common.database import get_session
 from liteads.common.logger import get_logger
 from liteads.schemas.openrtb import BidRequest, BidResponse, NoBidReason
@@ -176,6 +177,7 @@ async def openrtb_bid(
 
     # No-bid → HTTP 204 (per OpenRTB spec)
     if bid_response is None or not bid_response.seatbid:
+        record_no_bid("no_fill")
         return Response(
             status_code=status.HTTP_204_NO_CONTENT,
             headers={"X-OpenRTB-Version": _OPENRTB_VERSION},

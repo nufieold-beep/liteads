@@ -84,6 +84,26 @@ class Campaign(Base, TimestampMixin):
         comment="Target environment: 1=CTV, 2=INAPP, NULL=both"
     )
 
+    # Floor pricing
+    bid_floor: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"),
+        comment="Minimum CPM floor for this campaign",
+    )
+    floor_config: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True, default=None,
+        comment="Dynamic floor rules JSON: {geo: {US: 5.0}, daypart: {prime: 8.0}, app: {com.roku: 6.0}}",
+    )
+
+    # Advertiser domain & IAB categories (for competitive separation in pods)
+    adomain: Mapped[str | None] = mapped_column(
+        String(255), nullable=True,
+        comment="Advertiser domain for competitive separation (e.g. brand.com)",
+    )
+    iab_categories: Mapped[list[str] | None] = mapped_column(
+        JSON, nullable=True, default=None,
+        comment="IAB content categories for competitive separation",
+    )
+
     # Frequency cap
     freq_cap_daily: Mapped[int] = mapped_column(Integer, default=10)
     freq_cap_hourly: Mapped[int] = mapped_column(Integer, default=3)

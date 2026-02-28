@@ -135,6 +135,12 @@ tbody tr:hover{background:var(--bg3)}
 
 /* ── VAST Tag display ────────────────────────────────────── */
 .vast-tag-display{background:var(--bg);border:1px solid var(--bg4);border-radius:var(--radius);padding:14px;font-family:'Fira Code',monospace;font-size:12px;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow-y:auto;color:var(--green)}
+
+/* ── Funnel bar styles ───────────────────────────────────── */
+.funnel-bar{display:flex;align-items:center;gap:12px;padding:4px 0}
+.funnel-bar .bar-fill{height:28px;border-radius:4px;transition:width .5s ease;min-width:4px;position:relative}
+.funnel-bar .bar-label{width:100px;font-size:13px;color:var(--fg2);text-align:right;flex-shrink:0}
+.funnel-bar .bar-value{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600}
 </style>
 </head>
 <body>
@@ -179,6 +185,10 @@ tbody tr:hover{background:var(--bg3)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
     </div>
+    <div class="nav-item" data-page="health" onclick="showPage('health')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/><circle cx="12" cy="12" r="1"/></svg>
+      Delivery Health
+    </div>
     <div class="nav-section">System</div>
     <div class="nav-item" data-page="settings" onclick="showPage('settings')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -206,6 +216,8 @@ tbody tr:hover{background:var(--bg3)}
     <div class="stat-card blue"><div class="label">Active Campaigns</div><div class="value" id="statCamps">–</div></div>
     <div class="stat-card green"><div class="label">Total Impressions</div><div class="value" id="statImps">–</div></div>
     <div class="stat-card yellow"><div class="label">Total Clicks</div><div class="value" id="statClicks">–</div></div>
+    <div class="stat-card green"><div class="label">Fill Rate</div><div class="value" id="statFillRate">–</div></div>
+    <div class="stat-card"><div class="label">VTR</div><div class="value" style="color:var(--blue)" id="statVtr">–</div></div>
   </div>
 
   <div class="card">
@@ -244,8 +256,8 @@ tbody tr:hover{background:var(--bg3)}
   <div class="card">
     <div class="card-body table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Campaign</th><th>Adv ID</th><th>Env</th><th>Bid</th><th>Budget/Day</th><th>Spent Today</th><th>Imps</th><th>Compl</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody id="campTableBody"><tr class="loading-row"><td colspan="11"><div class="spinner"></div></td></tr></tbody>
+        <thead><tr><th>ID</th><th>Campaign</th><th>Adv ID</th><th>Env</th><th>Bid</th><th>Floor</th><th>Domain</th><th>Budget/Day</th><th>Spent Today</th><th>Imps</th><th>Compl</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="campTableBody"><tr class="loading-row"><td colspan="13"><div class="spinner"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -363,6 +375,8 @@ tbody tr:hover{background:var(--bg3)}
     <div class="tab" onclick="switchAnalyticsTab('budget')">Budget</div>
     <div class="tab" onclick="switchAnalyticsTab('demand')">Demand Report</div>
     <div class="tab" onclick="switchAnalyticsTab('supply')">Supply Report</div>
+    <div class="tab" onclick="switchAnalyticsTab('delivery')">Delivery Health</div>
+    <div class="tab" onclick="switchAnalyticsTab('vasterrors')">VAST Errors</div>
   </div>
 
   <div class="card">
@@ -374,6 +388,60 @@ tbody tr:hover{background:var(--bg3)}
 
 <!-- ═══════════════ SETTINGS PAGE ═══════════════ -->
 <div class="page" id="page-settings">
+
+<!-- ═══════════════ DELIVERY HEALTH PAGE ═══════════════ -->
+<div class="page" id="page-health">
+  <h3 style="font-size:16px;margin-bottom:16px">Delivery Health & VAST Monitoring</h3>
+
+  <!-- Aggregate KPI cards -->
+  <div class="stats-grid" id="healthKpis">
+    <div class="stat-card green"><div class="label">Ad Start Rate</div><div class="value" id="hStartRate">–</div></div>
+    <div class="stat-card blue"><div class="label">VTR (Completion)</div><div class="value" id="hVtr">–</div></div>
+    <div class="stat-card yellow"><div class="label">Skip Rate</div><div class="value" id="hSkipRate">–</div></div>
+    <div class="stat-card" style="--val-color:var(--red)"><div class="label">Error Rate</div><div class="value" style="color:var(--red)" id="hErrorRate">–</div></div>
+    <div class="stat-card accent"><div class="label">Fill Rate</div><div class="value" id="hFillRate">–</div></div>
+    <div class="stat-card"><div class="label">No-Bid Rate</div><div class="value" style="color:var(--fg2)" id="hNoBidRate">–</div></div>
+  </div>
+
+  <!-- VAST Event Funnel -->
+  <div class="card">
+    <div class="card-header"><h3>VAST Event Funnel</h3><button class="btn btn-secondary btn-sm" onclick="loadDeliveryHealth()">↻ Refresh</button></div>
+    <div class="card-body">
+      <div id="funnelChart" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+  </div>
+
+  <!-- Per-campaign breakdown -->
+  <div class="card">
+    <div class="card-header"><h3>Campaign Delivery Health</h3></div>
+    <div class="card-body table-wrap">
+      <table>
+        <thead><tr><th>Campaign ID</th><th>Impressions</th><th>Starts</th><th>Start Rate</th><th>Q1</th><th>Mid</th><th>Q3</th><th>Completions</th><th>VTR</th><th>Skip Rate</th><th>Error Rate</th></tr></thead>
+        <tbody id="healthTableBody"><tr class="loading-row"><td colspan="11"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VAST Errors -->
+  <div class="card">
+    <div class="card-header"><h3>VAST Errors</h3></div>
+    <div class="card-body">
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="label">Total Errors</div><div class="value" style="color:var(--red)" id="hTotalErrors">0</div></div>
+        <div class="stat-card"><div class="label">Total Events</div><div class="value" id="hTotalEvents">0</div></div>
+        <div class="stat-card"><div class="label">Overall Error Rate</div><div class="value" style="color:var(--red)" id="hOverallErrorRate">0%</div></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Campaign ID</th><th>Error Count</th></tr></thead>
+          <tbody id="vastErrorsTableBody"><tr><td colspan="2" style="text-align:center;color:var(--fg3);padding:20px">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SETTINGS PAGE (continued) ═══════════════ -->
   <h3 style="font-size:16px;margin-bottom:16px">Server Settings</h3>
   <div class="card">
     <div class="card-header"><h3>API Configuration</h3></div>
@@ -447,6 +515,16 @@ tbody tr:hover{background:var(--bg3)}
       <div class="form-row">
         <div class="form-group"><label>Bid Amount (CPM) *</label><input id="campBid" type="number" step="0.01" value="5.00"></div>
         <div class="form-group"><label>Environment</label><select id="campEnv"><option value="">Both</option><option value="1">CTV</option><option value="2">In-App</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Bid Floor (CPM)</label><input id="campBidFloor" type="number" step="0.01" value="0" title="Minimum CPM floor price"></div>
+        <div class="form-group"><label>Advertiser Domain</label><input id="campAdomain" placeholder="brand.com" title="For competitive separation in ad pods"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>IAB Categories</label><input id="campIabCats" placeholder="IAB1-1, IAB3-2 (comma-separated)" title="IAB categories for competitive separation"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full"><label>Floor Config (JSON)</label><textarea id="campFloorConfig" placeholder='{"geo":{"US":5.0,"GB":4.0},"daypart":{"prime":8.0}}' style="min-height:50px" title="Dynamic floor rules by geo, daypart, app"></textarea></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Daily Budget ($)</label><input id="campBudgetDaily" type="number" step="0.01" value="100"></div>
@@ -612,7 +690,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   $(`page-${name}`).classList.add('active');
   document.querySelector(`.nav-item[data-page="${name}"]`).classList.add('active');
-  const titles = {dashboard:'Dashboard',advertisers:'Advertisers',campaigns:'Campaigns',creatives:'Creatives',targeting:'Targeting Rules',vast:'VAST Tag Builder',analytics:'Analytics',settings:'Settings'};
+  const titles = {dashboard:'Dashboard',advertisers:'Advertisers',campaigns:'Campaigns',creatives:'Creatives',targeting:'Targeting Rules',vast:'VAST Tag Builder',analytics:'Analytics',health:'Delivery Health',settings:'Settings'};
   $('pageTitle').textContent = titles[name] || name;
 
   // Auto-load data for specific pages
@@ -623,6 +701,7 @@ function showPage(name) {
     case 'creatives': loadCreatives(); break;
     case 'targeting': loadCampaignDropdowns(); break;
     case 'analytics': loadCampaignDropdowns(); break;
+    case 'health': loadDeliveryHealth(); break;
   }
 }
 
@@ -671,11 +750,19 @@ async function loadDashboard() {
     const activeCamps = camps.filter(c => c.status === 1).length;
     const totalImps = camps.reduce((s, c) => s + (c.impressions || 0), 0);
     const totalClicks = camps.reduce((s, c) => s + (c.clicks || 0), 0);
+    const totalCompl = camps.reduce((s, c) => s + (c.completions || 0), 0);
 
     $('statAdvs').textContent = fmtNum(activeAdvs);
     $('statCamps').textContent = fmtNum(activeCamps);
     $('statImps').textContent = fmtNum(totalImps);
     $('statClicks').textContent = fmtNum(totalClicks);
+    $('statVtr').textContent = totalImps > 0 ? ((totalCompl / totalImps) * 100).toFixed(1) + '%' : '—';
+
+    // Load fill rate from delivery health
+    try {
+      const health = await api('/api/v1/analytics/reports/delivery-health');
+      $('statFillRate').textContent = (health?.aggregate?.fill_rate || 0) + '%';
+    } catch(e) { $('statFillRate').textContent = '—'; }
 
     const recent = camps.slice(0, 10);
     $('dashCampaigns').innerHTML = recent.length ? recent.map(c => `
@@ -789,6 +876,8 @@ async function loadCampaigns() {
         <td>${c.advertiser_id}</td>
         <td>${ENV_MAP[c.environment] || 'Both'}</td>
         <td>${fmtMoney(c.bid_amount)}</td>
+        <td>${c.bid_floor ? fmtMoney(c.bid_floor) : '—'}</td>
+        <td>${esc(c.adomain || '—')}</td>
         <td>${fmtMoney(c.budget_daily)}</td>
         <td>${fmtMoney(c.spent_today)}</td>
         <td>${fmtNum(c.impressions)}</td>
@@ -800,7 +889,7 @@ async function loadCampaigns() {
           ${c.status !== 3 ? `<button class="btn btn-danger btn-sm" onclick="deleteCampaign(${c.id})">Del</button>` : ''}
         </td>
       </tr>
-    `).join('') : '<tr><td colspan="11" class="empty">No campaigns yet</td></tr>';
+    `).join('') : '<tr><td colspan="13" class="empty">No campaigns yet</td></tr>';
   } catch(e) {}
 }
 
@@ -821,6 +910,10 @@ async function editCampaign(id) {
     $setVal('campDesc', c.description);
     $setVal('campBid', c.bid_amount);
     $setVal('campEnv', c.environment ?? '');
+    $setVal('campBidFloor', c.bid_floor || 0);
+    $setVal('campAdomain', c.adomain || '');
+    $setVal('campIabCats', (c.iab_categories || []).join(', '));
+    $setVal('campFloorConfig', c.floor_config ? JSON.stringify(c.floor_config, null, 2) : '');
     $setVal('campBudgetDaily', c.budget_daily);
     $setVal('campBudgetTotal', c.budget_total);
     $setVal('campFreqH', c.freq_cap_hourly);
@@ -833,11 +926,23 @@ async function editCampaign(id) {
 
 async function saveCampaign() {
   const id = $val('campEditId');
+  let floorConfig = null;
+  const fcVal = $val('campFloorConfig').trim();
+  if (fcVal) {
+    try { floorConfig = JSON.parse(fcVal); } catch(e) { return toast('Floor Config must be valid JSON', 'error'); }
+  }
+  const iabStr = $val('campIabCats').trim();
+  const iabCats = iabStr ? iabStr.split(',').map(s => s.trim()).filter(Boolean) : null;
+
   const body = {
     advertiser_id: parseInt($val('campAdvId')),
     name: $val('campName'),
     description: $val('campDesc') || null,
     bid_amount: parseFloat($val('campBid')),
+    bid_floor: parseFloat($val('campBidFloor')) || 0,
+    adomain: $val('campAdomain') || null,
+    iab_categories: iabCats,
+    floor_config: floorConfig,
     environment: $val('campEnv') ? parseInt($val('campEnv')) : null,
     budget_daily: parseFloat($val('campBudgetDaily')) || 0,
     budget_total: parseFloat($val('campBudgetTotal')) || 0,
@@ -886,6 +991,7 @@ function clearCampForm() {
   $setVal('campBid','5.00'); $setVal('campEnv',''); $setVal('campBudgetDaily','100');
   $setVal('campBudgetTotal','10000'); $setVal('campFreqH','3'); $setVal('campFreqD','10');
   $setVal('campStart',''); $setVal('campEnd','');
+  $setVal('campBidFloor','0'); $setVal('campAdomain',''); $setVal('campIabCats',''); $setVal('campFloorConfig','');
 }
 
 function populateAdvDropdown(selectId) {
@@ -1176,6 +1282,22 @@ async function loadAnalytics() {
     return;
   }
 
+  if (currentAnalyticsTab === 'delivery') {
+    try {
+      const data = await api('/api/v1/analytics/reports/delivery-health');
+      renderDeliveryHealthTab(data);
+    } catch(e) { $('analyticsTableWrap').innerHTML = '<p style="color:var(--red);text-align:center;padding:20px">Failed to load delivery health</p>'; }
+    return;
+  }
+
+  if (currentAnalyticsTab === 'vasterrors') {
+    try {
+      const data = await api('/api/v1/analytics/reports/vast-errors');
+      renderVastErrorsTab(data);
+    } catch(e) { $('analyticsTableWrap').innerHTML = '<p style="color:var(--red);text-align:center;padding:20px">Failed to load VAST errors</p>'; }
+    return;
+  }
+
   if (!campId) {
     // Show all campaigns summary
     try {
@@ -1278,6 +1400,117 @@ async function flushStats() {
     toast('Stats flushed to database');
     loadAnalytics();
   } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DELIVERY HEALTH PAGE
+// ═══════════════════════════════════════════════════════════════
+async function loadDeliveryHealth() {
+  try {
+    const [health, errors] = await Promise.all([
+      api('/api/v1/analytics/reports/delivery-health'),
+      api('/api/v1/analytics/reports/vast-errors'),
+    ]);
+
+    const agg = health.aggregate || {};
+    $('hStartRate').textContent = (agg.ad_start_rate || 0) + '%';
+    $('hVtr').textContent = (agg.vtr || 0) + '%';
+    $('hSkipRate').textContent = (agg.skip_rate || 0) + '%';
+    $('hErrorRate').textContent = (agg.error_rate || 0) + '%';
+    $('hFillRate').textContent = (agg.fill_rate || 0) + '%';
+    $('hNoBidRate').textContent = (agg.no_bid_rate || 0) + '%';
+
+    // Funnel chart
+    const funnel = health.funnel || {};
+    const funnelSteps = [
+      { label: 'Impressions', value: funnel.impressions || 0, color: 'var(--accent2)' },
+      { label: 'Starts', value: funnel.starts || 0, color: 'var(--blue)' },
+      { label: 'Q1 (25%)', value: funnel.first_quartiles || 0, color: 'var(--green)' },
+      { label: 'Midpoint', value: funnel.midpoints || 0, color: 'var(--yellow)' },
+      { label: 'Q3 (75%)', value: funnel.third_quartiles || 0, color: '#f97316' },
+      { label: 'Completions', value: funnel.completions || 0, color: 'var(--green)' },
+    ];
+    const maxVal = Math.max(...funnelSteps.map(s => s.value), 1);
+    $('funnelChart').innerHTML = funnelSteps.map(s => {
+      const pct = (s.value / maxVal * 100).toFixed(0);
+      return `<div style="display:flex;align-items:center;gap:12px">
+        <span style="width:100px;font-size:13px;color:var(--fg2);text-align:right">${s.label}</span>
+        <div style="flex:1;background:var(--bg3);border-radius:4px;height:28px;overflow:hidden;position:relative">
+          <div style="width:${pct}%;background:${s.color};height:100%;border-radius:4px;transition:width .5s;min-width:2px"></div>
+          <span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:var(--fg)">${fmtNum(s.value)}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Per-campaign table
+    const cdata = health.by_campaign || [];
+    $('healthTableBody').innerHTML = cdata.length ? cdata.map(c => `
+      <tr>
+        <td>${c.campaign_id}</td>
+        <td>${fmtNum(c.impressions)}</td>
+        <td>${fmtNum(c.starts)}</td>
+        <td>${c.ad_start_rate}%</td>
+        <td>${fmtNum(c.first_quartiles)}</td>
+        <td>${fmtNum(c.midpoints)}</td>
+        <td>${fmtNum(c.third_quartiles)}</td>
+        <td>${fmtNum(c.completions)}</td>
+        <td style="color:var(--green);font-weight:600">${c.vtr}%</td>
+        <td>${c.skip_rate}%</td>
+        <td style="color:${c.error_rate > 5 ? 'var(--red)' : 'var(--fg2)'}">${c.error_rate}%</td>
+      </tr>
+    `).join('') : '<tr><td colspan="11" style="text-align:center;color:var(--fg3);padding:30px">No delivery health data yet</td></tr>';
+
+    // VAST errors section
+    $('hTotalErrors').textContent = fmtNum(errors.total_errors || 0);
+    $('hTotalEvents').textContent = fmtNum(errors.total_events || 0);
+    $('hOverallErrorRate').textContent = (errors.error_rate_pct || 0) + '%';
+
+    const errRows = errors.by_campaign || [];
+    $('vastErrorsTableBody').innerHTML = errRows.length ? errRows.map(r => `
+      <tr>
+        <td>${r.campaign_id || '—'}</td>
+        <td style="color:var(--red);font-weight:600">${fmtNum(r.error_count)}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="2" style="text-align:center;color:var(--fg3);padding:20px">No VAST errors recorded</td></tr>';
+
+  } catch(e) {}
+}
+
+// Analytics tab renderers for delivery health and VAST errors
+function renderDeliveryHealthTab(data) {
+  const agg = data.aggregate || {};
+  const cdata = data.by_campaign || [];
+  let html = '<div class="stats-grid" style="margin-bottom:16px">';
+  html += `<div class="stat-card green"><div class="label">Start Rate</div><div class="value">${agg.ad_start_rate || 0}%</div></div>`;
+  html += `<div class="stat-card blue"><div class="label">VTR</div><div class="value">${agg.vtr || 0}%</div></div>`;
+  html += `<div class="stat-card yellow"><div class="label">Skip Rate</div><div class="value">${agg.skip_rate || 0}%</div></div>`;
+  html += `<div class="stat-card"><div class="label">Error Rate</div><div class="value" style="color:var(--red)">${agg.error_rate || 0}%</div></div>`;
+  html += `<div class="stat-card accent"><div class="label">Fill Rate</div><div class="value">${agg.fill_rate || 0}%</div></div>`;
+  html += `<div class="stat-card"><div class="label">No-Bid Rate</div><div class="value" style="color:var(--fg2)">${agg.no_bid_rate || 0}%</div></div>`;
+  html += '</div>';
+  html += cdata.length ?
+    `<table><thead><tr><th>Campaign</th><th>Imps</th><th>Starts</th><th>Start %</th><th>VTR</th><th>Skip %</th><th>Error %</th></tr></thead>
+    <tbody>${cdata.map(c => `<tr>
+      <td>${c.campaign_id}</td><td>${fmtNum(c.impressions)}</td><td>${fmtNum(c.starts)}</td>
+      <td>${c.ad_start_rate}%</td><td style="color:var(--green)">${c.vtr}%</td><td>${c.skip_rate}%</td>
+      <td style="color:${c.error_rate>5?'var(--red)':'var(--fg2)'}">${c.error_rate}%</td>
+    </tr>`).join('')}</tbody></table>` : '<p style="color:var(--fg3);text-align:center;padding:20px">No data</p>';
+  $('analyticsTableWrap').innerHTML = html;
+}
+
+function renderVastErrorsTab(data) {
+  const rows = data.by_campaign || [];
+  let html = '<div class="stats-grid" style="margin-bottom:16px">';
+  html += `<div class="stat-card"><div class="label">Total Errors</div><div class="value" style="color:var(--red)">${fmtNum(data.total_errors||0)}</div></div>`;
+  html += `<div class="stat-card"><div class="label">Total Events</div><div class="value">${fmtNum(data.total_events||0)}</div></div>`;
+  html += `<div class="stat-card"><div class="label">Error Rate</div><div class="value" style="color:var(--red)">${data.error_rate_pct||0}%</div></div>`;
+  html += '</div>';
+  html += rows.length ?
+    `<table><thead><tr><th>Campaign ID</th><th>Error Count</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${r.campaign_id || '—'}</td><td style="color:var(--red);font-weight:600">${fmtNum(r.error_count)}</td>
+    </tr>`).join('')}</tbody></table>` : '<p style="color:var(--fg3);text-align:center;padding:20px">No VAST errors</p>';
+  $('analyticsTableWrap').innerHTML = html;
 }
 
 // ═══════════════════════════════════════════════════════════════

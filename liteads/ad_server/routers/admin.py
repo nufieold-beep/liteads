@@ -101,6 +101,13 @@ class CampaignCreate(BaseModel):
     budget_daily: float = Field(0.0, ge=0)
     budget_total: float = Field(0.0, ge=0)
     bid_amount: float = Field(..., gt=0, description="CPM bid (USD)")
+    bid_floor: float = Field(0.0, ge=0, description="Minimum CPM floor (USD)")
+    floor_config: dict[str, Any] | None = Field(
+        None,
+        description="Dynamic floor rules: {geo: {US: 5.0}, daypart: {prime: 8.0}, app: {com.roku: 6.0}}",
+    )
+    adomain: str | None = Field(None, max_length=255, description="Advertiser domain for competitive separation")
+    iab_categories: list[str] | None = Field(None, description="IAB content categories for competitive separation")
     environment: int | None = Field(None, description="1=CTV, 2=INAPP, null=both")
     freq_cap_daily: int = Field(10, ge=0)
     freq_cap_hourly: int = Field(3, ge=0)
@@ -114,6 +121,10 @@ class CampaignUpdate(BaseModel):
     budget_daily: float | None = None
     budget_total: float | None = None
     bid_amount: float | None = None
+    bid_floor: float | None = None
+    floor_config: dict[str, Any] | None = None
+    adomain: str | None = None
+    iab_categories: list[str] | None = None
     environment: int | None = None
     freq_cap_daily: int | None = None
     freq_cap_hourly: int | None = None
@@ -135,6 +146,10 @@ class CampaignOut(BaseModel):
     spent_today: float
     spent_total: float
     bid_amount: float
+    bid_floor: float = 0.0
+    floor_config: dict[str, Any] | None = None
+    adomain: str | None = None
+    iab_categories: list[str] | None = None
     environment: int | None = None
     freq_cap_daily: int
     freq_cap_hourly: int
@@ -346,6 +361,10 @@ async def create_campaign(
         budget_daily=Decimal(str(body.budget_daily)),
         budget_total=Decimal(str(body.budget_total)),
         bid_amount=Decimal(str(body.bid_amount)),
+        bid_floor=Decimal(str(body.bid_floor)) if body.bid_floor else Decimal("0"),
+        floor_config=body.floor_config,
+        adomain=body.adomain,
+        iab_categories=body.iab_categories,
         environment=body.environment,
         freq_cap_daily=body.freq_cap_daily,
         freq_cap_hourly=body.freq_cap_hourly,

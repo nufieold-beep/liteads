@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS campaigns (
     spent_total     DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
     bid_type        INTEGER       DEFAULT 1      NOT NULL,    -- 1 = CPM (only)
     bid_amount      DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,    -- CPM price
+    bid_floor       DECIMAL(10,4) DEFAULT 0.0000 NOT NULL,    -- Minimum CPM floor
+    floor_config    JSONB,                                     -- Dynamic floor rules
+    adomain         VARCHAR(255),                              -- Advertiser domain (for competitive separation)
+    iab_categories  JSONB,                                     -- IAB content categories
     environment     INTEGER,                                   -- 1=CTV, 2=INAPP, NULL=both
     freq_cap_daily  INTEGER       DEFAULT 10     NOT NULL,
     freq_cap_hourly INTEGER       DEFAULT 3      NOT NULL,
@@ -222,6 +226,24 @@ INSERT INTO targeting_rules (campaign_id, rule_type, rule_value, is_include) VAL
     (3, 'device',      '{"os": ["android", "ios"]}', TRUE),
     -- InApp campaign 4: target all InApp
     (4, 'environment', '{"values": ["inapp"]}', TRUE);
+
+-- =========================================================================
+-- Migration for existing deployments – add new CTV columns safely
+-- =========================================================================
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='bid_floor') THEN
+        ALTER TABLE campaigns ADD COLUMN bid_floor DECIMAL(10,4) DEFAULT 0.0000 NOT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='floor_config') THEN
+        ALTER TABLE campaigns ADD COLUMN floor_config JSONB;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='adomain') THEN
+        ALTER TABLE campaigns ADD COLUMN adomain VARCHAR(255);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='iab_categories') THEN
+        ALTER TABLE campaigns ADD COLUMN iab_categories JSONB;
+    END IF;
+END $$;
 
 DO $$
 BEGIN

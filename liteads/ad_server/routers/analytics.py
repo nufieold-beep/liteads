@@ -9,6 +9,8 @@ Endpoints:
     GET  /campaign/{id}/historical     – DB-based historical data
     GET  /reports/demand               – Demand report (adomain, gross rev, eCPM …)
     GET  /reports/supply               – Supply / publisher report
+    GET  /reports/delivery-health      – Delivery health: VAST funnel, error rates, VTR
+    GET  /reports/vast-errors          – VAST error breakdown by code & campaign
     POST /flush                        – Flush Redis stats → DB
     POST /sync-spend                   – Sync spend Redis → Campaign DB
 """
@@ -25,6 +27,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from liteads.ad_server.services.analytics_service import AnalyticsService
 from liteads.common.database import get_session
 from liteads.common.logger import get_logger
+from liteads.common.utils import safe_divide
+from liteads.models import AdEvent, EventType
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -212,6 +216,106 @@ async def supply_report(
         datetime.fromisoformat(end).replace(tzinfo=timezone.utc) if end else None
     )
     return await service.get_supply_report(start_dt, end_dt, campaign_id)
+
+
+# ---------------------------------------------------------------------------
+# Delivery Health & VAST Error reports
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/reports/delivery-health",
+    summary="Delivery health report",
+    description=(
+        "Returns the VAST delivery funnel (impressions → start → Q1 → mid → Q3 → complete), "
+        "ad start rate, VTR, skip rate, error rate, and no-bid rate per campaign. "
+        "Uses HourlyStat data or live Redis stats."
+    ),
+)
+async def delivery_health_report(
+    start: str | None = Query(None, description="Start datetime ISO-8601"),
+    end: str | None = Query(None, description="End datetime ISO-8601"),
+    campaign_id: int | None = Query(None, description="Filter by campaign"),
+    service: AnalyticsService = Depends(_get_analytics_service),
+) -> dict[str, Any]:
+    start_dt = (
+        datetime.fromisoformat(start).replace(tzinfo=timezone.utc) if start else None
+    )
+    end_dt = (
+        datetime.fromisoformat(end).replace(tzinfo=timezone.utc) if end else None
+    )
+    return await service.get_delivery_health_report(start_dt, end_dt, campaign_id)
+
+
+@router.get(
+    "/reports/vast-errors",
+    summary="VAST error breakdown",
+    description=(
+        "Returns VAST error events grouped by error_code and campaign. "
+        "Error codes follow IAB VAST spec (100=XML parse, 200=wrapper, "
+        "300=linear, 400=companion, 500=non-linear, 600=media, 900=undefined)."
+    ),
+)
+async def vast_errors_report(
+    start: str | None = Query(None, description="Start datetime ISO-8601"),
+    end: str | None = Query(None, description="End datetime ISO-8601"),
+    campaign_id: int | None = Query(None, description="Filter by campaign"),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    from sqlalchemy import func, select, cast, String as SqlString
+
+    start_dt = (
+        datetime.fromisoformat(start).replace(tzinfo=timezone.utc) if start else None
+    )
+    end_dt = (
+        datetime.fromisoformat(end).replace(tzinfo=timezone.utc) if end else None
+    )
+
+    filters: list[Any] = [AdEvent.event_type == EventType.ERROR]
+    if start_dt:
+        filters.append(AdEvent.event_time >= start_dt)
+    if end_dt:
+        filters.append(AdEvent.event_time <= end_dt)
+    if campaign_id:
+        filters.append(AdEvent.campaign_id == campaign_id)
+
+    q = (
+        select(
+            AdEvent.campaign_id,
+            func.count().label("error_count"),
+        )
+        .where(*filters)
+        .group_by(AdEvent.campaign_id)
+        .order_by(func.count().desc())
+    )
+    result = await session.execute(q)
+    rows = result.all()
+
+    # Also get total events for error rate calculation
+    total_q = select(func.count()).select_from(AdEvent)
+    if start_dt:
+        total_q = total_q.where(AdEvent.event_time >= start_dt)
+    if end_dt:
+        total_q = total_q.where(AdEvent.event_time <= end_dt)
+    if campaign_id:
+        total_q = total_q.where(AdEvent.campaign_id == campaign_id)
+    total_result = await session.execute(total_q)
+    total_events = total_result.scalar() or 0
+
+    error_rows = []
+    total_errors = 0
+    for row in rows:
+        total_errors += row.error_count
+        error_rows.append({
+            "campaign_id": row.campaign_id,
+            "error_count": row.error_count,
+        })
+
+    return {
+        "total_errors": total_errors,
+        "total_events": total_events,
+        "error_rate_pct": round(safe_divide(total_errors, total_events) * 100, 2),
+        "by_campaign": error_rows,
+    }
 
 
 # ---------------------------------------------------------------------------
