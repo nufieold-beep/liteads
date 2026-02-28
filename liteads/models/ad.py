@@ -536,15 +536,17 @@ class SupplyDemandMapping(Base, TimestampMixin):
 
     # Relationships
     supply_tag: Mapped["SupplyTag"] = relationship(
-        "SupplyTag", back_populates="demand_mappings",
+        "SupplyTag", back_populates="demand_mappings", lazy="selectin",
     )
     demand_endpoint: Mapped["DemandEndpoint | None"] = relationship(
         "DemandEndpoint",
         back_populates="supply_mappings",
         foreign_keys=[demand_endpoint_id],
+        lazy="selectin",
     )
     demand_vast_tag: Mapped["DemandVastTag | None"] = relationship(
         "DemandVastTag",
         back_populates="supply_mappings",
         foreign_keys=[demand_vast_tag_id],
+        lazy="selectin",
     )

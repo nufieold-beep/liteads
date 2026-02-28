@@ -423,12 +423,12 @@ tbody tr:hover{background:var(--bg3)}
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchAnalyticsTab('today')">Today</div>
-    <div class="tab" onclick="switchAnalyticsTab('budget')">Budget</div>
-    <div class="tab" onclick="switchAnalyticsTab('demand')">Demand Report</div>
-    <div class="tab" onclick="switchAnalyticsTab('supply')">Supply Report</div>
-    <div class="tab" onclick="switchAnalyticsTab('delivery')">Delivery Health</div>
-    <div class="tab" onclick="switchAnalyticsTab('vasterrors')">VAST Errors</div>
+    <div class="tab active" data-tab="today" onclick="switchAnalyticsTab('today')">Today</div>
+    <div class="tab" data-tab="budget" onclick="switchAnalyticsTab('budget')">Budget</div>
+    <div class="tab" data-tab="demand" onclick="switchAnalyticsTab('demand')">Demand Report</div>
+    <div class="tab" data-tab="supply" onclick="switchAnalyticsTab('supply')">Supply Report</div>
+    <div class="tab" data-tab="delivery" onclick="switchAnalyticsTab('delivery')">Delivery Health</div>
+    <div class="tab" data-tab="vasterrors" onclick="switchAnalyticsTab('vasterrors')">VAST Errors</div>
   </div>
 
   <div class="card">
@@ -1250,12 +1250,12 @@ async function loadCampaigns(){
   }catch(e){}
 }
 
-function openCampaignModal(){clearCampForm();populateAdvDropdown('campAdvId');openModal('campModal')}
+async function openCampaignModal(){clearCampForm();await populateAdvDropdown('campAdvId');openModal('campModal')}
 
 async function editCampaign(id){
   try{
     const c=await api(`/api/v1/admin/campaigns/${id}`);
-    populateAdvDropdown('campAdvId');
+    await populateAdvDropdown('campAdvId');
     $('campModalTitle').textContent='Edit Campaign';
     $setVal('campEditId',id);$setVal('campAdvId',c.advertiser_id);$setVal('campName',c.name);
     $setVal('campDesc',c.description);$setVal('campBid',c.bid_amount);$setVal('campEnv',c.environment??'');
@@ -1313,7 +1313,8 @@ function clearCampForm(){
   $setVal('campBidFloor','0');$setVal('campAdomain','');$setVal('campIabCats','');$setVal('campFloorConfig','');
 }
 
-function populateAdvDropdown(selectId){
+async function populateAdvDropdown(selectId){
+  if(!advertisersCache.length){try{advertisersCache=await api('/api/v1/admin/advertisers')}catch(e){}}
   const sel=$(selectId);
   sel.innerHTML=advertisersCache.filter(a=>a.status===1).map(a=>`<option value="${a.id}">${a.name} (#${a.id})</option>`).join('');
 }
@@ -1366,7 +1367,7 @@ let currentAnalyticsTab='today';
 
 function switchAnalyticsTab(tab){
   currentAnalyticsTab=tab;
-  document.querySelectorAll('#page-analytics .tab').forEach(t=>{t.classList.toggle('active',t.textContent.trim().toLowerCase()===tab)});
+  document.querySelectorAll('#page-analytics .tab').forEach(t=>{t.classList.toggle('active',t.dataset.tab===tab)});
   loadAnalytics();
 }
 
