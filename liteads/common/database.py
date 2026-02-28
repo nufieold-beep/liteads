@@ -15,18 +15,12 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase
 
 from liteads.common.config import get_settings
 from liteads.common.logger import get_logger
+from liteads.models.base import Base  # Single source of truth for ORM Base
 
 logger = get_logger(__name__)
-
-
-class Base(DeclarativeBase):
-    """SQLAlchemy declarative base class."""
-
-    pass
 
 
 class DatabaseManager:
@@ -161,6 +155,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def create_tables() -> None:
     """Create all tables in the database."""
+    # Ensure all model modules are imported so metadata is populated
+    import liteads.models.ad  # noqa: F401
     async with db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created")
@@ -168,6 +164,7 @@ async def create_tables() -> None:
 
 async def drop_tables() -> None:
     """Drop all tables in the database."""
+    import liteads.models.ad  # noqa: F401
     async with db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     logger.info("Database tables dropped")
