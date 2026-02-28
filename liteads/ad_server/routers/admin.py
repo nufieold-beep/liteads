@@ -425,6 +425,22 @@ async def delete_campaign(camp_id: int, session: AsyncSession = Depends(get_sess
 # CREATIVE endpoints
 # ============================================================================
 
+@router.get("/creatives", response_model=list[CreativeOut], summary="List creatives")
+async def list_creatives(
+    campaign_id: int | None = Query(None, description="Filter by campaign"),
+    status_filter: int | None = Query(None, alias="status", description="Filter by status"),
+    session: AsyncSession = Depends(get_session),
+) -> Any:
+    q = select(Creative)
+    if campaign_id is not None:
+        q = q.where(Creative.campaign_id == campaign_id)
+    if status_filter is not None:
+        q = q.where(Creative.status == status_filter)
+    q = q.order_by(Creative.id)
+    result = await session.execute(q)
+    return result.scalars().all()
+
+
 @router.post("/creatives", response_model=CreativeOut, status_code=201, summary="Add creative")
 async def create_creative(
     body: CreativeCreate,

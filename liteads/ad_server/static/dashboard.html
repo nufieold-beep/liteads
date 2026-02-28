@@ -299,15 +299,19 @@ tbody tr:hover{background:var(--bg3)}
     <div class="card-body">
       <div class="form-row">
         <div class="form-group"><label>Slot ID *</label><input id="vastSlotId" placeholder="homepage_preroll"></div>
-        <div class="form-group"><label>Environment</label><select id="vastEnv"><option value="ctv">CTV</option><option value="inapp">In-App</option></select></div>
+        <div class="form-group"><label>Start Delay</label><select id="vastStartDelay"><option value="0">Pre-roll (0)</option><option value="-1">Mid-roll (-1)</option><option value="-2">Post-roll (-2)</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Width</label><input id="vastW" type="number" value="1920"></div>
         <div class="form-group"><label>Height</label><input id="vastH" type="number" value="1080"></div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label>Min Duration</label><input id="vastMinDur" type="number" value="5"></div>
         <div class="form-group"><label>Max Duration</label><input id="vastDur" type="number" value="30"></div>
-        <div class="form-group"><label>VAST Version</label><select id="vastVer"><option value="4.0">4.0</option><option value="4.1">4.1</option><option value="4.2">4.2</option><option value="3.0">3.0</option><option value="2.0">2.0</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Device OS</label><input id="vastOS" placeholder="roku, android, ios, tizen..."></div>
+        <div class="form-group"><label>DNT</label><select id="vastDNT"><option value="0">0 (No)</option><option value="1">1 (Yes)</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>App Bundle</label><input id="vastBundle" placeholder="com.example.app"></div>
@@ -896,39 +900,7 @@ function populateAdvDropdown(selectId) {
 // ═══════════════════════════════════════════════════════════════
 async function loadCreatives() {
   try {
-    // We need to iterate campaigns to get creatives since there's no list-all endpoint
-    // But we can get individual creatives. Let's show creatives per campaign.
-    if (!campaignsCache.length) {
-      campaignsCache = await api('/api/v1/admin/campaigns');
-    }
-
-    // Fetch creatives for each campaign (the admin only has get-by-id)
-    // Since we don't have a list-all-creatives endpoint, we'll show campaigns and let users drill in
-    // Actually, looking at the schema, there IS a campaign detail that shows creatives
-    // Let's try to fetch each campaign's creatives
-    let allCreatives = [];
-    for (const camp of campaignsCache) {
-      try {
-        // Try getting campaign detail which may include creatives
-        const detail = await api(`/api/v1/admin/campaigns/${camp.id}`);
-        if (detail.creatives) {
-          allCreatives.push(...detail.creatives);
-        }
-      } catch(e) { /* skip */ }
-    }
-
-    // If we couldn't get creatives that way, show a message
-    if (allCreatives.length === 0 && campaignsCache.length > 0) {
-      // Try getting creatives by sequential IDs (1-50)
-      const promises = [];
-      for (let i = 1; i <= 50; i++) {
-        promises.push(
-          api(`/api/v1/admin/creatives/${i}`).catch(() => null)
-        );
-      }
-      const results = await Promise.all(promises);
-      allCreatives = results.filter(Boolean);
-    }
+    const allCreatives = await api('/api/v1/admin/creatives');
 
     $('crtvTableBody').innerHTML = allCreatives.length ? allCreatives.map(c => `
       <tr>
@@ -1141,18 +1113,21 @@ function buildVastTag() {
   const slotId = $val('vastSlotId');
   if (!slotId) return toast('Slot ID is required', 'error');
 
-  let url = `${API_BASE}/api/vast?slot_id=${encodeURIComponent(slotId)}`;
-  url += `&env=${$val('vastEnv')}`;
+  let url = `${API_BASE}/api/vast?sid=${encodeURIComponent(slotId)}`;
   url += `&w=${$val('vastW')}&h=${$val('vastH')}`;
-  url += `&max_dur=${$val('vastDur')}`;
-  url += `&vast_ver=${$val('vastVer')}`;
+  url += `&min_dur=${$val('vastMinDur')}&max_dur=${$val('vastDur')}`;
+  url += `&startdelay=${$val('vastStartDelay')}`;
+  url += `&dnt=${$val('vastDNT')}`;
+
+  const osVal = $val('vastOS');
+  if (osVal) url += `&os=${encodeURIComponent(osVal)}`;
 
   const bundle = $val('vastBundle');
   const appName = $val('vastAppName');
   if (bundle) url += `&app_bundle=${encodeURIComponent(bundle)}`;
   if (appName) url += `&app_name=${encodeURIComponent(appName)}`;
 
-  // Macros
+  // Macros — replaced at request time by the video player / SSP
   if ($('macroIP').checked) url += '&ip=[IP]';
   if ($('macroUA').checked) url += '&ua=[UA]';
   if ($('macroIFA').checked) url += '&ifa=[IFA]';
@@ -1176,8 +1151,9 @@ let currentAnalyticsTab = 'today';
 
 function switchAnalyticsTab(tab) {
   currentAnalyticsTab = tab;
-  document.querySelectorAll('#page-analytics .tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  document.querySelectorAll('#page-analytics .tab').forEach(t => {
+    t.classList.toggle('active', t.textContent.trim().toLowerCase() === tab);
+  });
   loadAnalytics();
 }
 
@@ -1203,21 +1179,21 @@ async function loadAnalytics() {
   if (!campId) {
     // Show all campaigns summary
     try {
-      const data = await api('/api/v1/analytics/campaigns');
+      const resp = await api('/api/v1/analytics/campaigns');
+      // Response: {campaigns: [...], count: N}
+      const data = resp.campaigns || (Array.isArray(resp) ? resp : []);
       let totalImps = 0, totalCompl = 0, totalClicks = 0;
-      if (Array.isArray(data)) {
-        data.forEach(c => {
-          totalImps += c.impressions || 0;
-          totalCompl += c.completions || 0;
-          totalClicks += c.clicks || 0;
-        });
-      }
+      data.forEach(c => {
+        totalImps += c.impressions || 0;
+        totalCompl += c.completions || 0;
+        totalClicks += c.clicks || 0;
+      });
       $('anImps').textContent = fmtNum(totalImps);
       $('anCompl').textContent = fmtNum(totalCompl);
       $('anClicks').textContent = fmtNum(totalClicks);
       $('anVtr').textContent = totalImps > 0 ? ((totalCompl / totalImps) * 100).toFixed(1) + '%' : '—';
 
-      $('analyticsTableWrap').innerHTML = Array.isArray(data) && data.length ?
+      $('analyticsTableWrap').innerHTML = data.length ?
         `<table><thead><tr><th>Campaign</th><th>Imps</th><th>Completions</th><th>Clicks</th><th>CTR</th><th>VTR</th><th>Spend</th></tr></thead>
         <tbody>${data.map(c => `<tr>
           <td><strong>${esc(c.name || `Campaign ${c.campaign_id || c.id}`)}</strong></td>
@@ -1263,16 +1239,16 @@ async function loadAnalytics() {
 function renderDemandReport(data) {
   const rows = Array.isArray(data) ? data : (data.rows || []);
   $('analyticsTableWrap').innerHTML = rows.length ?
-    `<table><thead><tr><th>ADomain</th><th>Demand ID</th><th>Requests</th><th>Wins</th><th>Imps</th><th>Revenue</th><th>eCPM</th><th>Win Rate</th></tr></thead>
+    `<table><thead><tr><th>ADomain</th><th>Demand ID</th><th>Creative ID</th><th>Imps</th><th>Revenue</th><th>eCPM</th><th>Avg Win Price</th><th>Fill Rate</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
       <td><strong>${esc(r.adomain || '—')}</strong></td>
       <td>${r.demand_id || '—'}</td>
-      <td>${fmtNum(r.requests || r.ad_requests || 0)}</td>
-      <td>${fmtNum(r.wins || 0)}</td>
+      <td>${r.demand_creative_id || '—'}</td>
       <td>${fmtNum(r.impressions || 0)}</td>
-      <td>${fmtMoney(r.revenue || r.gross_revenue || 0)}</td>
-      <td>${fmtMoney(r.ecpm || 0)}</td>
-      <td>${r.win_rate ? r.win_rate.toFixed(1) + '%' : '—'}</td>
+      <td>${fmtMoney(r.gross_revenue || 0)}</td>
+      <td>${fmtMoney(r.gross_ecpm || 0)}</td>
+      <td>${fmtMoney(r.avg_win_price || 0)}</td>
+      <td>${r.bid_request_fill_rate ? r.bid_request_fill_rate.toFixed(1) + '%' : '—'}</td>
     </tr>`).join('')}</tbody></table>`
     : '<p style="color:var(--fg3);text-align:center;padding:20px">No demand report data</p>';
 }
@@ -1280,14 +1256,17 @@ function renderDemandReport(data) {
 function renderSupplyReport(data) {
   const rows = Array.isArray(data) ? data : (data.rows || []);
   $('analyticsTableWrap').innerHTML = rows.length ?
-    `<table><thead><tr><th>Source</th><th>Bundle</th><th>Requests</th><th>Fills</th><th>Fill Rate</th><th>Revenue</th><th>eCPM</th></tr></thead>
+    `<table><thead><tr><th>Source</th><th>Campaign</th><th>Country</th><th>Bundle</th><th>Requests</th><th>Opps</th><th>Imps</th><th>Fill Rate</th><th>Revenue</th><th>eCPM</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
-      <td><strong>${esc(r.source_name || r.source || '—')}</strong></td>
-      <td>${esc(r.bundle_id || r.bundle || '—')}</td>
-      <td>${fmtNum(r.requests || r.ad_requests || 0)}</td>
-      <td>${fmtNum(r.fills || r.impressions || 0)}</td>
-      <td>${r.fill_rate ? r.fill_rate.toFixed(1) + '%' : '—'}</td>
-      <td>${fmtMoney(r.revenue || 0)}</td>
+      <td><strong>${esc(r.source_name || '—')}</strong></td>
+      <td>${esc(r.campaign_name || String(r.campaign_id || '—'))}</td>
+      <td>${esc(r.country_code || '—')}</td>
+      <td>${esc(r.bundle_id || '—')}</td>
+      <td>${fmtNum(r.ad_requests || 0)}</td>
+      <td>${fmtNum(r.ad_opportunities || 0)}</td>
+      <td>${fmtNum(r.impressions || 0)}</td>
+      <td>${r.fill_rate_ad_req != null ? r.fill_rate_ad_req.toFixed(1) + '%' : '—'}</td>
+      <td>${fmtMoney(r.total_revenue || 0)}</td>
       <td>${fmtMoney(r.ecpm || 0)}</td>
     </tr>`).join('')}</tbody></table>`
     : '<p style="color:var(--fg3);text-align:center;padding:20px">No supply report data</p>';
