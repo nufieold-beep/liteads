@@ -355,3 +355,196 @@ class HourlyStat(Base):
         # Prevent duplicate rows on re-flush of the same hour
         UniqueConstraint("campaign_id", "stat_hour", name="uq_hourly_stat_campaign_hour"),
     )
+
+
+# =========================================================================
+# Supply / Demand management models
+# =========================================================================
+
+
+class SupplyTag(Base, TimestampMixin):
+    """Publisher-facing supply VAST tag configuration.
+
+    Publishers embed these VAST tag URLs in their video players.
+    Each supply tag can target specific demand endpoints to fill ads.
+    """
+
+    __tablename__ = "supply_tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    slot_id: Mapped[str] = mapped_column(
+        String(100), nullable=False, unique=True,
+        comment="Unique slot/zone identifier used in VAST tag URL",
+    )
+
+    # Pricing
+    bid_floor: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"),
+        comment="Minimum CPM floor price for this supply tag",
+    )
+    margin_pct: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2), default=Decimal("0"),
+        comment="Margin percentage the ad server takes (e.g. 20.00 = 20%)",
+    )
+
+    # Video settings
+    environment: Mapped[int | None] = mapped_column(
+        Integer, nullable=True,
+        comment="Target environment: 1=CTV, 2=INAPP, NULL=both",
+    )
+    min_duration: Mapped[int] = mapped_column(Integer, default=5)
+    max_duration: Mapped[int] = mapped_column(Integer, default=30)
+    width: Mapped[int] = mapped_column(Integer, default=1920)
+    height: Mapped[int] = mapped_column(Integer, default=1080)
+
+    # Status
+    status: Mapped[int] = mapped_column(Integer, default=Status.ACTIVE)
+
+    # Relationships
+    demand_mappings: Mapped[list["SupplyDemandMapping"]] = relationship(
+        "SupplyDemandMapping", back_populates="supply_tag", lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+
+class DemandEndpoint(Base, TimestampMixin):
+    """Third-party OpenRTB demand endpoint (DSP / bridge ad server).
+
+    The ad server sends bid requests to these endpoints to obtain creatives.
+    """
+
+    __tablename__ = "demand_endpoints"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    endpoint_url: Mapped[str] = mapped_column(
+        String(1024), nullable=False,
+        comment="Full URL for OpenRTB 2.6 bid requests",
+    )
+
+    # Pricing
+    bid_floor: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"),
+        comment="Minimum CPM bid floor to send in bid requests",
+    )
+    margin_pct: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2), default=Decimal("0"),
+        comment="Margin percentage on revenue from this demand source",
+    )
+
+    # Request settings
+    timeout_ms: Mapped[int] = mapped_column(
+        Integer, default=500,
+        comment="Request timeout in milliseconds",
+    )
+    qps_limit: Mapped[int] = mapped_column(
+        Integer, default=0,
+        comment="Max queries per second (0 = unlimited)",
+    )
+
+    # Status
+    status: Mapped[int] = mapped_column(Integer, default=Status.ACTIVE)
+
+    # Relationships
+    supply_mappings: Mapped[list["SupplyDemandMapping"]] = relationship(
+        "SupplyDemandMapping",
+        back_populates="demand_endpoint",
+        lazy="selectin",
+        foreign_keys="SupplyDemandMapping.demand_endpoint_id",
+    )
+
+
+class DemandVastTag(Base, TimestampMixin):
+    """Third-party demand VAST tag source.
+
+    Instead of OpenRTB, some demand sources provide a VAST tag URL
+    that can be used as a wrapper/redirect.
+    """
+
+    __tablename__ = "demand_vast_tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    vast_url: Mapped[str] = mapped_column(
+        String(2048), nullable=False,
+        comment="Third-party VAST tag URL (supports macros)",
+    )
+
+    # Pricing
+    bid_floor: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"),
+        comment="Minimum CPM floor for this demand VAST tag",
+    )
+    margin_pct: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2), default=Decimal("0"),
+        comment="Margin percentage on revenue from this demand VAST tag",
+    )
+    cpm_value: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0"),
+        comment="Fixed CPM value / estimated value if known",
+    )
+
+    # Status
+    status: Mapped[int] = mapped_column(Integer, default=Status.ACTIVE)
+
+    # Relationships
+    supply_mappings: Mapped[list["SupplyDemandMapping"]] = relationship(
+        "SupplyDemandMapping",
+        back_populates="demand_vast_tag",
+        lazy="selectin",
+        foreign_keys="SupplyDemandMapping.demand_vast_tag_id",
+    )
+
+
+class SupplyDemandMapping(Base, TimestampMixin):
+    """Links supply tags to their demand sources (ORTB endpoints or VAST tags).
+
+    A supply tag can target multiple demand sources with priority/weight.
+    """
+
+    __tablename__ = "supply_demand_mappings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    supply_tag_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("supply_tags.id", ondelete="CASCADE"), nullable=False,
+    )
+
+    # One of these two should be set (not both)
+    demand_endpoint_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("demand_endpoints.id", ondelete="CASCADE"), nullable=True,
+    )
+    demand_vast_tag_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("demand_vast_tags.id", ondelete="CASCADE"), nullable=True,
+    )
+
+    # Routing
+    priority: Mapped[int] = mapped_column(
+        Integer, default=1,
+        comment="Lower number = higher priority (1 = highest)",
+    )
+    weight: Mapped[int] = mapped_column(
+        Integer, default=100,
+        comment="Weight for load balancing among same-priority sources",
+    )
+
+    # Status
+    status: Mapped[int] = mapped_column(Integer, default=Status.ACTIVE)
+
+    # Relationships
+    supply_tag: Mapped["SupplyTag"] = relationship(
+        "SupplyTag", back_populates="demand_mappings",
+    )
+    demand_endpoint: Mapped["DemandEndpoint | None"] = relationship(
+        "DemandEndpoint",
+        back_populates="supply_mappings",
+        foreign_keys=[demand_endpoint_id],
+    )
+    demand_vast_tag: Mapped["DemandVastTag | None"] = relationship(
+        "DemandVastTag",
+        back_populates="supply_mappings",
+        foreign_keys=[demand_vast_tag_id],
+    )

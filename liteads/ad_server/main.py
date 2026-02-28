@@ -20,6 +20,7 @@ from liteads.ad_server.routers import ad, event, health, openrtb, vast_tag
 from liteads.ad_server.routers import admin as admin_router
 from liteads.ad_server.routers import analytics as analytics_router
 from liteads.ad_server.routers import demand as demand_router
+from liteads.ad_server.routers import supply_demand as supply_demand_router
 from liteads.common.cache import redis_client
 from liteads.common.config import get_settings
 from liteads.common.database import close_db, create_tables, init_db
@@ -171,6 +172,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router.router, prefix="/api/v1/admin", tags=["admin"])
     app.include_router(analytics_router.router, prefix="/api/v1/analytics", tags=["analytics"])
     app.include_router(demand_router.router, prefix="/api/v1/demand", tags=["demand"])
+    app.include_router(supply_demand_router.router, prefix="/api/v1/supply-demand", tags=["supply-demand"])
 
     # ── Admin Dashboard UI ─────────────────────────────────────
     _static_dir = Path(__file__).resolve().parent / "static"

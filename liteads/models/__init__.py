@@ -7,7 +7,11 @@ from liteads.models.ad import (
     Advertiser,
     Campaign,
     Creative,
+    DemandEndpoint,
+    DemandVastTag,
     HourlyStat,
+    SupplyDemandMapping,
+    SupplyTag,
     TargetingRule,
 )
 from liteads.models.base import (
@@ -39,4 +43,9 @@ __all__ = [
     "TargetingRule",
     "HourlyStat",
     "AdEvent",
+    # Supply / Demand
+    "SupplyTag",
+    "DemandEndpoint",
+    "DemandVastTag",
+    "SupplyDemandMapping",
 ]

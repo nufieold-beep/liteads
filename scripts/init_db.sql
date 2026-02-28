@@ -245,6 +245,118 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- =========================================================================
+-- Supply / Demand management tables
+-- =========================================================================
+
+-- -------------------------------------------------------------------------
+-- Supply Tags – Publisher-facing VAST tag configurations
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS supply_tags (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255)  NOT NULL,
+    description     TEXT,
+    slot_id         VARCHAR(100)  NOT NULL UNIQUE,
+    bid_floor       DECIMAL(10,4) DEFAULT 0.0000 NOT NULL,
+    margin_pct      DECIMAL(6,2)  DEFAULT 0.00   NOT NULL,
+    environment     INTEGER,
+    min_duration    INTEGER       DEFAULT 5      NOT NULL,
+    max_duration    INTEGER       DEFAULT 30     NOT NULL,
+    width           INTEGER       DEFAULT 1920   NOT NULL,
+    height          INTEGER       DEFAULT 1080   NOT NULL,
+    status          INTEGER       DEFAULT 1      NOT NULL,
+    created_at      TIMESTAMP     DEFAULT NOW()  NOT NULL,
+    updated_at      TIMESTAMP     DEFAULT NOW()  NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_supply_tag_slot   ON supply_tags(slot_id);
+CREATE INDEX IF NOT EXISTS idx_supply_tag_status ON supply_tags(status);
+
+-- -------------------------------------------------------------------------
+-- Demand Endpoints – Third-party OpenRTB endpoints (DSPs / bridge servers)
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS demand_endpoints (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255)   NOT NULL,
+    description     TEXT,
+    endpoint_url    VARCHAR(1024)  NOT NULL,
+    bid_floor       DECIMAL(10,4)  DEFAULT 0.0000 NOT NULL,
+    margin_pct      DECIMAL(6,2)   DEFAULT 0.00   NOT NULL,
+    timeout_ms      INTEGER        DEFAULT 500    NOT NULL,
+    qps_limit       INTEGER        DEFAULT 0      NOT NULL,
+    status          INTEGER        DEFAULT 1      NOT NULL,
+    created_at      TIMESTAMP      DEFAULT NOW()  NOT NULL,
+    updated_at      TIMESTAMP      DEFAULT NOW()  NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_demand_ep_status ON demand_endpoints(status);
+
+-- -------------------------------------------------------------------------
+-- Demand VAST Tags – Third-party demand VAST tag sources
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS demand_vast_tags (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(255)   NOT NULL,
+    description     TEXT,
+    vast_url        VARCHAR(2048)  NOT NULL,
+    bid_floor       DECIMAL(10,4)  DEFAULT 0.0000 NOT NULL,
+    margin_pct      DECIMAL(6,2)   DEFAULT 0.00   NOT NULL,
+    cpm_value       DECIMAL(10,4)  DEFAULT 0.0000 NOT NULL,
+    status          INTEGER        DEFAULT 1      NOT NULL,
+    created_at      TIMESTAMP      DEFAULT NOW()  NOT NULL,
+    updated_at      TIMESTAMP      DEFAULT NOW()  NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_demand_vast_status ON demand_vast_tags(status);
+
+-- -------------------------------------------------------------------------
+-- Supply ↔ Demand Mapping (many-to-many with priority/weight)
+-- -------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS supply_demand_mappings (
+    id                  SERIAL PRIMARY KEY,
+    supply_tag_id       INTEGER NOT NULL REFERENCES supply_tags(id) ON DELETE CASCADE,
+    demand_endpoint_id  INTEGER REFERENCES demand_endpoints(id) ON DELETE CASCADE,
+    demand_vast_tag_id  INTEGER REFERENCES demand_vast_tags(id) ON DELETE CASCADE,
+    priority            INTEGER DEFAULT 1   NOT NULL,
+    weight              INTEGER DEFAULT 100 NOT NULL,
+    status              INTEGER DEFAULT 1   NOT NULL,
+    created_at          TIMESTAMP DEFAULT NOW() NOT NULL,
+    updated_at          TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sdm_supply   ON supply_demand_mappings(supply_tag_id);
+CREATE INDEX IF NOT EXISTS idx_sdm_demand   ON supply_demand_mappings(demand_endpoint_id);
+CREATE INDEX IF NOT EXISTS idx_sdm_vast     ON supply_demand_mappings(demand_vast_tag_id);
+
+-- =========================================================================
+-- Seed Supply / Demand Data
+-- =========================================================================
+INSERT INTO supply_tags (name, slot_id, bid_floor, margin_pct, environment, min_duration, max_duration)
+VALUES
+    ('CTV Pre-Roll Default', 'ctv_preroll', 3.0000, 20.00, 1, 5, 30),
+    ('CTV Mid-Roll Sports',  'ctv_midroll', 5.0000, 15.00, 1, 10, 60),
+    ('InApp Rewarded Video',  'inapp_reward', 2.0000, 25.00, 2, 5, 30);
+
+INSERT INTO demand_endpoints (name, endpoint_url, bid_floor, margin_pct, timeout_ms)
+VALUES
+    ('Primary DSP',     'https://dsp1.example.com/ortb/bid', 2.0000, 10.00, 300),
+    ('Secondary Bridge', 'https://bridge.example.com/bid',   1.5000, 15.00, 500);
+
+INSERT INTO demand_vast_tags (name, vast_url, bid_floor, margin_pct, cpm_value)
+VALUES
+    ('Fallback VAST Network', 'https://vastnet.example.com/vast?s=[SLOT]&w=[WIDTH]&h=[HEIGHT]', 1.0000, 20.00, 4.0000);
+
+INSERT INTO supply_demand_mappings (supply_tag_id, demand_endpoint_id, priority, weight)
+VALUES
+    (1, 1, 1, 100),
+    (1, 2, 2, 100),
+    (2, 1, 1, 100);
+
+INSERT INTO supply_demand_mappings (supply_tag_id, demand_vast_tag_id, priority, weight)
+VALUES
+    (1, 1, 3, 100),
+    (3, 1, 1, 100);
+
 DO $$
 BEGIN
     RAISE NOTICE 'LiteAds database initialized – CPM CTV & In-App Video Only!';
