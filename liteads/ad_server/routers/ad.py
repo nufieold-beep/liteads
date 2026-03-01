@@ -4,6 +4,8 @@ Video ad serving endpoints for CPM CTV and In-App.
 Supports VAST 2.x-4.x tracking URLs and OpenRTB 2.6 compatible responses.
 """
 
+import re
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +25,8 @@ from liteads.schemas.response import (
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
 
 
 def get_ad_service(session: AsyncSession = Depends(get_session)) -> AdService:
@@ -214,6 +218,14 @@ async def get_vast_xml(
         v: VAST version (2.0, 3.0, 4.0, 4.1, 4.2)
     """
     base_url = str(request.base_url).rstrip("/")
+
+    # Validate inputs to prevent XML injection
+    if not _ID_PATTERN.match(request_id):
+        return Response(content="Invalid request_id", status_code=400)
+    if not _ID_PATTERN.match(ad_id):
+        return Response(content="Invalid ad_id", status_code=400)
+    if env not in ("ctv", "inapp"):
+        return Response(content="Invalid env", status_code=400)
 
     # Parse ad_id
     parts = ad_id.split("_")

@@ -99,25 +99,26 @@ def create_app() -> FastAPI:
 
         start_time = time.perf_counter()
 
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
 
-        duration_ms = (time.perf_counter() - start_time) * 1000
+            duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.info(
-            "Request completed",
-            method=request.method,
-            path=request.url.path,
-            status_code=response.status_code,
-            duration_ms=round(duration_ms, 2),
-        )
+            logger.info(
+                "Request completed",
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration_ms=round(duration_ms, 2),
+            )
 
-        # Add headers
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+            # Add headers
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
 
-        clear_log_context()
-
-        return response
+            return response
+        finally:
+            clear_log_context()
 
     # Exception handlers
     @app.exception_handler(LiteAdsError)
@@ -180,6 +181,8 @@ def create_app() -> FastAPI:
     async def dashboard_ui():
         """Serve the admin dashboard single-page application."""
         html_path = _static_dir / "dashboard.html"
+        if not html_path.exists():
+            return HTMLResponse(content="<h1>Dashboard not found</h1>", status_code=404)
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
 
     # Legacy/direct path redirect – handles requests to the filesystem-style URL

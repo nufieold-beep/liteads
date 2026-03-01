@@ -144,13 +144,23 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency for FastAPI to get a database session.
 
+    Commits after the route handler (and response serialization) completes.
+    Rolls back on any exception.
+
     Usage:
         @app.get("/items")
         async def get_items(session: AsyncSession = Depends(get_session)):
             ...
     """
-    async with db.session() as session:
+    session = db.session_factory()
+    try:
         yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 
 async def create_tables() -> None:
