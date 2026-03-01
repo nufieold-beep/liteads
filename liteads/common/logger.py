@@ -104,7 +104,11 @@ def clear_log_context() -> None:
 
 
 # Initialize logging on module import
-setup_logging()
+try:
+    setup_logging()
+except Exception as exc:  # noqa: BLE001
+    import sys
+    print(f"Warning: logging setup failed: {exc}", file=sys.stderr)
 
 # Default logger instance
 logger = get_logger("liteads")
