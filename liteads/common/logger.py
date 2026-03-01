@@ -18,7 +18,12 @@ from liteads.common.config import get_settings
 
 def setup_logging() -> None:
     """Configure structured logging based on settings."""
-    settings = get_settings()
+    try:
+        settings = get_settings()
+    except Exception:
+        # Fallback to basic logging if settings unavailable
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+        return
 
     # Shared processors
     shared_processors: list[Processor] = [

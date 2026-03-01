@@ -23,11 +23,11 @@ help:
 	@echo "Database:"
 	@echo "  make db-init     Initialize database"
 	@echo "  make db-migrate  Run migrations"
-	@echo "  make db-mock     Generate mock data"
+	@echo "  make db-mock     Seed CTV/InApp video demo data"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean       Clean build artifacts"
-	@echo "  make benchmark   Run performance benchmark"
+	@echo "  make benchmark   Run performance benchmark (requires running server)"
 
 # =============================================================================
 # Development
@@ -92,7 +92,7 @@ db-migrate:
 	alembic upgrade head
 
 db-mock:
-	python scripts/generate_mock_data.py --advertisers 10 --campaigns 5 --creatives 3
+	python scripts/init_db.py --seed
 
 db-shell:
 	docker compose exec postgres psql -U liteads -d liteads
@@ -123,9 +123,8 @@ clean:
 	find . -type f -name "*.pyc" -delete
 
 benchmark:
-	@echo "Running benchmark with wrk..."
-	@echo "Make sure wrk is installed: brew install wrk"
-	wrk -t4 -c100 -d30s -s scripts/benchmark.lua http://localhost:8000/api/v1/ad/request
+	@echo "Benchmark script removed. Use a load testing tool like 'wrk' or 'locust' against a running server."
+	@echo "Example: wrk -t4 -c100 -d30s http://localhost:8000/api/v1/ad/request"
 
 health:
 	curl -s http://localhost:8000/health | python -m json.tool

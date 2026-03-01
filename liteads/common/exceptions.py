@@ -74,8 +74,8 @@ class ModelPredictionError(LiteAdsError):
     pass
 
 
-class TimeoutError(LiteAdsError):
-    """Operation timed out."""
+class AdServingTimeoutError(LiteAdsError):
+    """Ad serving operation timed out."""
 
     pass
 
