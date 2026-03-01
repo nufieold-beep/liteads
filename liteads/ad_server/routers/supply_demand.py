@@ -193,9 +193,10 @@ async def _get_or_404(session: AsyncSession, model: type, entity_id: int, label:
 
 def _apply_updates(obj: Any, updates: BaseModel) -> None:
     for field_name, value in updates.model_dump(exclude_unset=True).items():
-        if value is not None and isinstance(value, float):
-            value = Decimal(str(value))
-        setattr(obj, field_name, value)
+        if value is not None:
+            if isinstance(value, float):
+                value = Decimal(str(value))
+            setattr(obj, field_name, value)
 
 
 def _supply_tag_out(tag: SupplyTag) -> SupplyTagOut:
