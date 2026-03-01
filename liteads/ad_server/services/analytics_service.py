@@ -519,37 +519,14 @@ class AnalyticsService:
         if campaign_id:
             filters.append(AdEvent.campaign_id == campaign_id)
 
-        q = (
-            select(
-                AdEvent.campaign_id,
-                AdEvent.event_type,
-                func.count().label("cnt"),
-            )
-            .where(*filters) if filters else select(
-                AdEvent.campaign_id,
-                AdEvent.event_type,
-                func.count().label("cnt"),
-            )
+        q = select(
+            AdEvent.campaign_id,
+            AdEvent.event_type,
+            func.count().label("cnt"),
         )
         if filters:
-            q = (
-                select(
-                    AdEvent.campaign_id,
-                    AdEvent.event_type,
-                    func.count().label("cnt"),
-                )
-                .where(*filters)
-                .group_by(AdEvent.campaign_id, AdEvent.event_type)
-            )
-        else:
-            q = (
-                select(
-                    AdEvent.campaign_id,
-                    AdEvent.event_type,
-                    func.count().label("cnt"),
-                )
-                .group_by(AdEvent.campaign_id, AdEvent.event_type)
-            )
+            q = q.where(*filters)
+        q = q.group_by(AdEvent.campaign_id, AdEvent.event_type)
 
         result = await self.session.execute(q)
         rows = result.all()

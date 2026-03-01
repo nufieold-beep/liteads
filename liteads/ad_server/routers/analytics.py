@@ -261,7 +261,7 @@ async def vast_errors_report(
     campaign_id: int | None = Query(None, description="Filter by campaign"),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
-    from sqlalchemy import func, select, cast, String as SqlString
+    from sqlalchemy import func, select
 
     start_dt = (
         datetime.fromisoformat(start).replace(tzinfo=timezone.utc) if start else None
