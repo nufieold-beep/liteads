@@ -12,7 +12,8 @@ database:
   port: 5432
   name: "liteads"
   user: "liteads"
-  password: "liteads_password"
+  # Set LITEADS_DB_PASSWORD env var to override
+  password: ""
 
 redis:
   host: "localhost"

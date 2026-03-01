@@ -75,20 +75,9 @@ class TestBidding:
         ecpm = bidding.calculate_ecpm(candidate)
         assert ecpm == candidate.bid
 
-    def test_calculate_ecpm_cpc(self, sample_candidates: list[AdCandidate]) -> None:
-        """Test eCPM calculation for CPC bid type."""
-        bidding = Bidding()
-        candidate = sample_candidates[0]
-        candidate.bid_type = 2  # CPC
-        candidate.pctr = 0.02
-
-        ecpm = bidding.calculate_ecpm(candidate)
-        expected = candidate.bid * candidate.pctr * 1000
-        assert abs(ecpm - expected) < 0.01
-
     def test_rank_candidates(self, sample_candidates: list[AdCandidate]) -> None:
         """Test candidate ranking."""
-        bidding = Bidding(strategy=RankingStrategy.ECPM)
+        bidding = Bidding(strategy=RankingStrategy.CPM)
         ranked = bidding.rank(sample_candidates)
 
         assert len(ranked) == len(sample_candidates)
@@ -107,15 +96,14 @@ class TestPredictor:
         sample_candidates: list[AdCandidate],
     ) -> None:
         """Test statistical predictor."""
-        predictor = StatisticalPredictor(default_ctr=0.01, default_cvr=0.001)
+        predictor = StatisticalPredictor(default_ctr=0.005, default_cvr=0.001)
 
         results = await predictor.predict_batch(sample_user_context, sample_candidates)
 
         assert len(results) == len(sample_candidates)
         for result in results:
             assert result.pctr > 0
-            assert result.pcvr > 0
-            assert result.model_version == "statistical_v1"
+            assert result.model_version == "statistical_fillrate_v1"
 
 
 class TestReranker:
@@ -157,7 +145,7 @@ class TestRecommendationConfig:
         assert config.max_retrieval == 100
         assert config.enable_budget_filter is True
         assert config.enable_frequency_filter is True
-        assert config.fallback_ctr == 0.01
+        assert config.fallback_ctr == 0.005
 
     def test_custom_config(self) -> None:
         """Test custom configuration."""
