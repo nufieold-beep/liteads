@@ -6,6 +6,7 @@ Creates advertisers, campaigns, creatives, and targeting rules.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -20,11 +21,11 @@ async def init_database():
 
     print("Connecting to PostgreSQL...")
     conn = await asyncpg.connect(
-        host="localhost",
-        port=5432,
-        user="liteads",
-        password="liteads_password",
-        database="liteads",
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "liteads"),
+        password=os.getenv("DB_PASSWORD", "liteads_password"),
+        database=os.getenv("DB_NAME", "liteads"),
     )
 
     print("Creating tables...")
@@ -32,14 +33,13 @@ async def init_database():
     # Create tables
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS advertisers (
-            id BIGSERIAL PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             company VARCHAR(255),
             contact_email VARCHAR(255),
-            contact_phone VARCHAR(50),
-            balance DECIMAL(15,2) DEFAULT 0.00 NOT NULL,
-            credit_limit DECIMAL(15,2) DEFAULT 0.00 NOT NULL,
-            status SMALLINT DEFAULT 1 NOT NULL,
+            balance DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
+            daily_budget DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
+            status INTEGER DEFAULT 1 NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
         )
@@ -47,21 +47,29 @@ async def init_database():
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS campaigns (
-            id BIGSERIAL PRIMARY KEY,
-            advertiser_id BIGINT NOT NULL REFERENCES advertisers(id) ON DELETE CASCADE,
+            id SERIAL PRIMARY KEY,
+            advertiser_id INTEGER NOT NULL REFERENCES advertisers(id) ON DELETE CASCADE,
             name VARCHAR(255) NOT NULL,
             description TEXT,
-            budget_daily DECIMAL(15,2),
-            budget_total DECIMAL(15,2),
-            spent_today DECIMAL(15,2) DEFAULT 0.00 NOT NULL,
-            spent_total DECIMAL(15,2) DEFAULT 0.00 NOT NULL,
-            bid_type SMALLINT DEFAULT 1 NOT NULL,
-            bid_amount DECIMAL(10,4) DEFAULT 1.0000 NOT NULL,
+            budget_daily DECIMAL(12,4),
+            budget_total DECIMAL(12,4),
+            spent_today DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
+            spent_total DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
+            bid_type INTEGER DEFAULT 1 NOT NULL,
+            bid_amount DECIMAL(12,4) DEFAULT 1.0000 NOT NULL,
+            environment INTEGER,
+            bid_floor DECIMAL(10,4) DEFAULT 0.0000 NOT NULL,
+            floor_config JSON,
+            adomain VARCHAR(255),
+            iab_categories JSON,
             start_time TIMESTAMP WITH TIME ZONE,
             end_time TIMESTAMP WITH TIME ZONE,
-            freq_cap_daily SMALLINT,
-            freq_cap_hourly SMALLINT,
-            status SMALLINT DEFAULT 1 NOT NULL,
+            freq_cap_daily INTEGER DEFAULT 10 NOT NULL,
+            freq_cap_hourly INTEGER DEFAULT 3 NOT NULL,
+            status INTEGER DEFAULT 1 NOT NULL,
+            impressions INTEGER DEFAULT 0 NOT NULL,
+            completions INTEGER DEFAULT 0 NOT NULL,
+            clicks INTEGER DEFAULT 0 NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
         )
@@ -69,20 +77,25 @@ async def init_database():
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS creatives (
-            id BIGSERIAL PRIMARY KEY,
-            campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-            title VARCHAR(255),
+            id SERIAL PRIMARY KEY,
+            campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+            title VARCHAR(255) NOT NULL,
             description TEXT,
-            image_url VARCHAR(500),
-            video_url VARCHAR(500),
-            landing_url VARCHAR(500) NOT NULL,
-            creative_type SMALLINT DEFAULT 1 NOT NULL,
-            width SMALLINT,
-            height SMALLINT,
-            status SMALLINT DEFAULT 1 NOT NULL,
-            impressions BIGINT DEFAULT 0 NOT NULL,
-            clicks BIGINT DEFAULT 0 NOT NULL,
-            conversions BIGINT DEFAULT 0 NOT NULL,
+            video_url VARCHAR(1024) NOT NULL,
+            vast_url VARCHAR(1024),
+            companion_image_url VARCHAR(1024),
+            landing_url VARCHAR(1024) NOT NULL,
+            creative_type INTEGER DEFAULT 2 NOT NULL,
+            duration INTEGER DEFAULT 30 NOT NULL,
+            width INTEGER DEFAULT 1920 NOT NULL,
+            height INTEGER DEFAULT 1080 NOT NULL,
+            bitrate INTEGER,
+            mime_type VARCHAR(50) DEFAULT 'video/mp4' NOT NULL,
+            skippable BOOLEAN DEFAULT TRUE NOT NULL,
+            skip_after INTEGER DEFAULT 5 NOT NULL,
+            placement INTEGER DEFAULT 1 NOT NULL,
+            status INTEGER DEFAULT 1 NOT NULL,
+            quality_score INTEGER DEFAULT 80 NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
         )
@@ -90,8 +103,8 @@ async def init_database():
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS targeting_rules (
-            id BIGSERIAL PRIMARY KEY,
-            campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+            id SERIAL PRIMARY KEY,
+            campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
             rule_type VARCHAR(50) NOT NULL,
             rule_value JSONB NOT NULL,
             is_include BOOLEAN DEFAULT TRUE NOT NULL,
@@ -102,11 +115,11 @@ async def init_database():
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS ad_events (
-            id BIGSERIAL PRIMARY KEY,
+            id SERIAL PRIMARY KEY,
             request_id VARCHAR(64) NOT NULL,
-            campaign_id BIGINT,
-            creative_id BIGINT,
-            event_type SMALLINT NOT NULL,
+            campaign_id INTEGER,
+            creative_id INTEGER,
+            event_type INTEGER NOT NULL,
             event_time TIMESTAMP WITH TIME ZONE NOT NULL,
             user_id VARCHAR(64),
             ip_address VARCHAR(45),
@@ -118,14 +131,13 @@ async def init_database():
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS hourly_stats (
-            id BIGSERIAL PRIMARY KEY,
-            campaign_id BIGINT NOT NULL,
-            creative_id BIGINT,
+            id SERIAL PRIMARY KEY,
+            campaign_id INTEGER NOT NULL,
             stat_hour TIMESTAMP WITH TIME ZONE NOT NULL,
-            impressions BIGINT DEFAULT 0 NOT NULL,
-            clicks BIGINT DEFAULT 0 NOT NULL,
-            conversions BIGINT DEFAULT 0 NOT NULL,
-            cost DECIMAL(15,4) DEFAULT 0.0000 NOT NULL,
+            impressions INTEGER DEFAULT 0 NOT NULL,
+            clicks INTEGER DEFAULT 0 NOT NULL,
+            conversions INTEGER DEFAULT 0 NOT NULL,
+            cost DECIMAL(12,4) DEFAULT 0.0000 NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
         )
@@ -168,16 +180,16 @@ async def init_database():
     a1, a2, a3, a4, a5 = advertiser_ids
     campaigns = [
         # advertiser_id, name, budget_daily, budget_total, bid_type, bid_amount
-        (a1, "王者荣耀推广", 1000.00, 30000.00, 2, 2.50),  # CPC
-        (a1, "原神暑期活动", 500.00, 15000.00, 1, 15.00),  # CPM
-        (a2, "618大促活动", 5000.00, 100000.00, 2, 1.80),  # CPC
-        (a2, "双11预热", 3000.00, 50000.00, 2, 2.20),  # CPC
-        (a3, "理财产品推广", 2000.00, 60000.00, 2, 5.00),  # CPC
-        (a3, "信用卡活动", 1500.00, 45000.00, 1, 25.00),  # CPM
-        (a4, "在线课程推广", 800.00, 24000.00, 2, 3.00),  # CPC
-        (a5, "外卖优惠", 2000.00, 40000.00, 2, 1.50),  # CPC
-        (a5, "打车补贴", 1000.00, 30000.00, 2, 1.20),  # CPC
-        (a1, "新游戏预约", 300.00, 9000.00, 1, 10.00),  # CPM
+        (a1, "CTV Pre-Roll Campaign", 1000.00, 30000.00, 1, 15.00),   # CPM
+        (a1, "InApp Video Campaign", 500.00, 15000.00, 1, 8.00),      # CPM
+        (a2, "CTV Mid-Roll Campaign", 5000.00, 100000.00, 1, 18.00),  # CPM
+        (a2, "InApp Rewarded Video", 3000.00, 50000.00, 1, 6.00),     # CPM
+        (a3, "CTV Post-Roll Campaign", 2000.00, 60000.00, 1, 10.00),  # CPM
+        (a3, "InApp Interstitial", 1500.00, 45000.00, 1, 7.50),       # CPM
+        (a4, "CTV Sports Campaign", 800.00, 24000.00, 1, 12.00),      # CPM
+        (a5, "InApp Gaming Campaign", 2000.00, 40000.00, 1, 5.00),    # CPM
+        (a5, "CTV News Campaign", 1000.00, 30000.00, 1, 9.00),        # CPM
+        (a1, "InApp Lifestyle Campaign", 300.00, 9000.00, 1, 6.50),   # CPM
     ]
 
     campaign_ids = []
@@ -195,33 +207,32 @@ async def init_database():
 
     print(f"  Inserted {len(campaigns)} campaigns (IDs: {campaign_ids})")
 
-    # Insert creatives - use campaign IDs
+    # Insert creatives - use campaign IDs (video-only, matching ORM model)
     c = campaign_ids  # shorthand
     creatives = [
-        (c[0], "王者荣耀新英雄上线", "限时福利，新英雄免费试玩", "banner", 300, 250),
-        (c[0], "王者荣耀视频广告", "精彩操作集锦", "video", 640, 360),
-        (c[1], "原神3.0新地图", "探索须弥，领取原石", "banner", 300, 250),
-        (c[2], "618超级红包", "满减叠加，低至5折", "native", 200, 200),
-        (c[2], "618品牌特卖", "大牌直降，限时抢购", "banner", 300, 100),
-        (c[3], "双11提前购", "定金翻倍，预售优惠", "native", 200, 200),
-        (c[4], "低息理财产品", "年化收益4.5%起", "banner", 300, 250),
-        (c[5], "信用卡申请", "开卡即送积分", "native", 200, 200),
-        (c[6], "Python课程", "从入门到精通", "banner", 300, 250),
-        (c[7], "外卖新人红包", "首单立减20元", "native", 200, 200),
-        (c[8], "打车优惠券", "新用户专享5折", "banner", 300, 100),
-        (c[9], "新游预约", "预约送限定皮肤", "banner", 300, 250),
+        (c[0], "CTV Pre-Roll 30s", "30-second CTV pre-roll video", 1, 1920, 1080),
+        (c[0], "CTV Pre-Roll 15s", "15-second CTV pre-roll video", 1, 1920, 1080),
+        (c[1], "InApp Video 30s", "30-second in-app video", 2, 1280, 720),
+        (c[2], "CTV Mid-Roll 30s", "30-second CTV mid-roll video", 1, 1920, 1080),
+        (c[2], "CTV Mid-Roll 15s", "15-second CTV mid-roll video", 1, 1920, 1080),
+        (c[3], "InApp Rewarded 30s", "30-second rewarded video", 2, 1280, 720),
+        (c[4], "CTV Post-Roll 30s", "30-second CTV post-roll video", 1, 1920, 1080),
+        (c[5], "InApp Interstitial 15s", "15-second interstitial video", 2, 1280, 720),
+        (c[6], "CTV Sports 30s", "30-second sports CTV video", 1, 1920, 1080),
+        (c[7], "InApp Gaming 30s", "30-second gaming in-app video", 2, 1280, 720),
+        (c[8], "CTV News 15s", "15-second news CTV video", 1, 1920, 1080),
+        (c[9], "InApp Lifestyle 30s", "30-second lifestyle in-app video", 2, 1280, 720),
     ]
 
-    for camp_id, title, desc, c_type, width, height in creatives:
-        creative_type = 1 if c_type == "banner" else (2 if c_type == "video" else 3)
+    for camp_id, title, desc, creative_type, width, height in creatives:
         await conn.execute(
             """
-            INSERT INTO creatives (campaign_id, title, description, image_url, landing_url,
+            INSERT INTO creatives (campaign_id, title, description, video_url, landing_url,
                                    creative_type, width, height, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
             """,
             camp_id, title, desc,
-            f"https://via.placeholder.com/{width}x{height}",
+            f"https://cdn.example.com/video/{camp_id}_{width}x{height}.mp4",
             f"https://example.com/landing/{camp_id}",
             creative_type, width, height
         )
@@ -265,11 +276,11 @@ async def verify_data():
     import asyncpg
 
     conn = await asyncpg.connect(
-        host="localhost",
-        port=5432,
-        user="liteads",
-        password="liteads_password",
-        database="liteads",
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "5432")),
+        user=os.getenv("DB_USER", "liteads"),
+        password=os.getenv("DB_PASSWORD", "liteads_password"),
+        database=os.getenv("DB_NAME", "liteads"),
     )
 
     print("\n" + "=" * 50)

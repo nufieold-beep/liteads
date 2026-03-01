@@ -45,7 +45,7 @@ async def generate_mock_data(
                     description=f"Description for campaign {j + 1}",
                     budget_daily=Decimal(str(random.randint(50, 500))),
                     budget_total=Decimal(str(random.randint(1000, 10000))),
-                    bid_type=random.choice([BidType.CPM, BidType.CPC]),
+                    bid_type=BidType.CPM,
                     bid_amount=Decimal(str(random.uniform(0.5, 10.0))).quantize(
                         Decimal("0.0001")
                     ),
@@ -59,17 +59,16 @@ async def generate_mock_data(
                 # Create creatives
                 for k in range(creatives_per_campaign):
                     creative_type = random.choice(
-                        [CreativeType.BANNER, CreativeType.NATIVE]
+                        [CreativeType.CTV_VIDEO, CreativeType.INAPP_VIDEO]
                     )
-                    width, height = random.choice(
-                        [(300, 250), (728, 90), (320, 50), (300, 600)]
-                    )
+                    is_ctv = creative_type == CreativeType.CTV_VIDEO
+                    width, height = (1920, 1080) if is_ctv else (1280, 720)
 
                     creative = Creative(
                         campaign_id=campaign.id,
                         title=f"Ad Title {i + 1}-{j + 1}-{k + 1}",
                         description=f"This is an amazing product! Click to learn more.",
-                        image_url=f"https://via.placeholder.com/{width}x{height}",
+                        video_url=f"https://cdn.example.com/video/{campaign.id}_{k + 1}.mp4",
                         landing_url=f"https://example.com/landing/{campaign.id}/{k + 1}",
                         creative_type=creative_type,
                         width=width,
