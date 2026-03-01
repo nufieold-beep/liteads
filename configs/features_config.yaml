@@ -112,11 +112,11 @@ feature_groups:
 
       - name: creative_type
         type: discrete
-        description: "创意类型 (banner/native/video)"
+        description: "创意类型 (ctv_video/inapp_video)"
 
       - name: bid_type
         type: discrete
-        description: "出价类型 (cpm/cpc/cpa)"
+        description: "出价类型 (cpm)"
 
       - name: landing_page_type
         type: discrete
