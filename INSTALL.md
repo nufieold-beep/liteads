@@ -4,20 +4,45 @@
 
 ---
 
+## URL Dashboard
+
+All service URLs at a glance once the stack is running:
+
+| Service              | URL                                        | Notes                          |
+|----------------------|--------------------------------------------|--------------------------------|
+| **Ad Server**        | http://localhost:8000                      | FastAPI application            |
+| **Health Check**     | http://localhost:8000/health               | Server status                  |
+| **Swagger UI**       | http://localhost:8000/docs                 | Interactive API docs           |
+| **ReDoc**            | http://localhost:8000/redoc                | Alternative API docs           |
+| **OpenRTB Bid**      | http://localhost:8000/api/v1/openrtb/bid   | `POST` – OpenRTB 2.6 endpoint |
+| **VAST Tag**         | http://localhost:8000/api/vast             | `GET` – VAST XML endpoint      |
+| **Ad Request**       | http://localhost:8000/api/v1/ad/request    | `POST` – Internal ad request   |
+| **Event Tracking**   | http://localhost:8000/api/v1/event/*       | `POST` – VAST event callbacks  |
+| **Nginx**            | http://localhost:80                        | Reverse proxy (production)     |
+| **Prometheus**       | http://localhost:9090                      | Metrics (monitoring profile)   |
+| **Grafana**          | http://localhost:3000                      | Dashboards – `admin` / `admin` |
+| **PostgreSQL**       | localhost:5432                             | DB: `liteads` / User: `liteads`|
+| **Redis**            | localhost:6379                             | Cache & frequency caps         |
+
+> **Profiles:** Nginx requires `--profile production`. Prometheus & Grafana require `--profile monitoring`.
+
+---
+
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)
-2. [Quick Start (Docker)](#quick-start-docker)
-3. [Local Development Setup](#local-development-setup)
-4. [Configuration](#configuration)
-5. [Database Setup](#database-setup)
-6. [Running the Server](#running-the-server)
-7. [API Endpoints](#api-endpoints)
-8. [Production Deployment](#production-deployment)
-9. [Monitoring (Prometheus & Grafana)](#monitoring-prometheus--grafana)
-10. [Testing](#testing)
-11. [Makefile Reference](#makefile-reference)
-12. [Troubleshooting](#troubleshooting)
+1. [URL Dashboard](#url-dashboard)
+2. [Prerequisites](#prerequisites)
+3. [Quick Start (Docker)](#quick-start-docker)
+4. [Local Development Setup](#local-development-setup)
+6. [Configuration](#configuration)
+7. [Database Setup](#database-setup)
+8. [Running the Server](#running-the-server)
+9. [API Endpoints](#api-endpoints)
+10. [Production Deployment](#production-deployment)
+11. [Monitoring (Prometheus & Grafana)](#monitoring-prometheus--grafana)
+12. [Testing](#testing)
+13. [Makefile Reference](#makefile-reference)
+14. [Troubleshooting](#troubleshooting)
 
 ---
 
