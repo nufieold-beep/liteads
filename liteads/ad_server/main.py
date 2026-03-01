@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from liteads.ad_server.middleware.metrics import MetricsMiddleware, metrics_endpoint
@@ -30,7 +30,6 @@ from liteads.common.utils import generate_request_id
 from liteads.schemas.response import ErrorResponse
 
 logger = get_logger(__name__)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -182,6 +181,12 @@ def create_app() -> FastAPI:
         """Serve the admin dashboard single-page application."""
         html_path = _static_dir / "dashboard.html"
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+    # Legacy/direct path redirect – handles requests to the filesystem-style URL
+    @app.get("/liteads/ad_server/static/dashboard.html", response_class=RedirectResponse, tags=["dashboard"])
+    async def dashboard_legacy_redirect():
+        """Redirect legacy filesystem-style dashboard URL to /dashboard."""
+        return RedirectResponse(url="/dashboard")
 
     # Serve any additional static assets (JS, CSS, images) if needed
     if _static_dir.is_dir():
