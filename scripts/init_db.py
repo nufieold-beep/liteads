@@ -74,7 +74,7 @@ async def create_tables(drop_existing: bool = False) -> None:
 
 async def seed_data() -> None:
     """Seed CTV and in-app video campaign data for development/testing."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from liteads.models.ad import Advertiser, Campaign, Creative, TargetingRule
 
@@ -117,7 +117,7 @@ async def seed_data() -> None:
         await session.flush()
         logger.info(f"Created {len(advertisers)} advertisers")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         campaigns = []
 
         # ------------------------------------------------------------------

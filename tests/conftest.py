@@ -2,8 +2,7 @@
 Pytest configuration and fixtures.
 """
 
-import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import pytest
@@ -19,14 +18,6 @@ from liteads.common.database import Base, get_session
 
 # Test database URL (use SQLite for testing)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
-
-
-@pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -79,8 +70,10 @@ def sample_ad_request() -> dict[str, Any]:
     """Sample ad request data."""
     return {
         "slot_id": "test_slot",
+        "environment": "ctv",
         "user_id": "test_user_123",
         "device": {
+            "device_type": "ctv",
             "os": "android",
             "os_version": "13.0",
             "model": "Pixel 7",
